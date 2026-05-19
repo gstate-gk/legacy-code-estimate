@@ -193,7 +193,7 @@ async function callGemini(systemPrompt: string, userPrompt: string): Promise<{ t
           responseMimeType: "application/json",
         },
       });
-      const result = await withTimeout(model.generateContent(userPrompt), 20_000, `gemini key ${i + 1}`);
+      const result = await withTimeout(model.generateContent(userPrompt), 5_000, `gemini key ${i + 1}`);
       const text = result.response.text();
       if (text && text.trim().length > 0) return { text };
     } catch (e) {
@@ -221,8 +221,8 @@ async function callClaudeFallback(systemPrompt: string, userPrompt: string): Pro
         system: systemPrompt + "\n\nJSON以外の文字は一切出力しないこと。",
         messages: [{ role: "user", content: userPrompt }],
       }),
-      30_000,
-      "claude fallback"
+      8_500,
+      "claude"
     );
     const text = response.content
       .filter((c): c is Anthropic.TextBlock => c.type === "text")
@@ -254,13 +254,15 @@ export async function estimateCode(req: EstimateRequest): Promise<EstimateResult
   const systemPrompt = buildSystemPrompt();
   const userPrompt = buildUserPrompt(req, detection, lines_total);
 
-  let llmResult = await callGemini(systemPrompt, userPrompt);
-  let model_used = GEMINI_MODEL;
+  // Vercel Hobby プランの 10秒制限内で確実に応答するため、Claude を優先。
+  // Phase 1 検証では Claude Haiku が 5-8秒で安定。Gemini は無料枠で予測不能。
+  let llmResult = await callClaudeFallback(systemPrompt, userPrompt);
+  let model_used = CLAUDE_FALLBACK_MODEL;
 
   if (!llmResult) {
-    console.warn("[estimate] Gemini failed, trying Claude fallback");
-    llmResult = await callClaudeFallback(systemPrompt, userPrompt);
-    model_used = CLAUDE_FALLBACK_MODEL;
+    console.warn("[estimate] Claude failed, trying Gemini fallback");
+    llmResult = await callGemini(systemPrompt, userPrompt);
+    model_used = GEMINI_MODEL;
   }
 
   if (!llmResult) {
