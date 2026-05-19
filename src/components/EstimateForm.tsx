@@ -253,6 +253,11 @@ export default function EstimateForm() {
               共有 URL から見積もり結果を復元しました。新しいコードで再評価することもできます。
             </div>
           )}
+          {result.is_heuristic_fallback && (
+            <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+              ⚠️ AI 推論サービスが応答しなかったため、言語判定と過去事例の経験則のみで見積もりました。数分後に再実行で詳細推論が得られる可能性があります。
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">見積もり結果</h2>
             <button

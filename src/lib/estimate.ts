@@ -46,6 +46,7 @@ export interface EstimateResult {
   notes: string[];
   caveats: string[];
   model_used: string;
+  is_heuristic_fallback?: boolean;
 }
 
 interface ParsedLLMResponse {
@@ -145,7 +146,7 @@ async function callGemini(systemPrompt: string, userPrompt: string): Promise<{ t
           responseMimeType: "application/json",
         },
       });
-      const result = await withTimeout(model.generateContent(userPrompt), 5_000, `gemini key ${i + 1}`);
+      const result = await withTimeout(model.generateContent(userPrompt), 2_500, `gemini key ${i + 1}`);
       const text = result.response.text();
       if (text && text.trim().length > 0) return { text };
       errors.push(`key${i + 1}: empty response`);
@@ -173,10 +174,7 @@ async function callClaudeFallback(systemPrompt: string, userPrompt: string): Pro
   if (!apiKey) { lastClaudeError = "ANTHROPIC_API_KEY not set"; return null; }
 
   const client = new Anthropic({ apiKey });
-  // 529 Overloaded はリトライ可能。短い指数バックオフで2回まで再試行
   let lastErr: string | null = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    if (attempt > 0) await sleep(400);
   try {
     const response = await withTimeout(
       client.messages.create({
@@ -185,7 +183,7 @@ async function callClaudeFallback(systemPrompt: string, userPrompt: string): Pro
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
       }),
-      3_500,
+      7_000,
       "claude"
     );
     const text = response.content
@@ -197,10 +195,7 @@ async function callClaudeFallback(systemPrompt: string, userPrompt: string): Pro
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     lastErr = msg.slice(0, 200);
-    console.error(`[claude] attempt ${attempt + 1} error:`, msg);
-    // 529 / 503 / overloaded はリトライ可能、他は即諦める
-    if (!/(529|503|overloaded|timeout|ECONNRESET)/i.test(msg)) break;
-  }
+    console.error(`[claude] error:`, msg);
   }
   lastClaudeError = lastErr;
   return null;
@@ -235,12 +230,14 @@ export async function estimateCode(req: EstimateRequest): Promise<EstimateResult
     model_used = GEMINI_MODEL;
   }
 
+  // AI 呼び出しがすべて失敗した場合、Few-shot から言語マッチで近い事例を返す
+  // ヒューリスティック・フォールバック
   if (!llmResult) {
-    const detail = [
-      lastClaudeError ? `Claude: ${lastClaudeError}` : null,
-      lastGeminiError ? `Gemini: ${lastGeminiError}` : null,
-    ].filter(Boolean).join(" | ");
-    throw new Error(`AI 呼び出しに失敗しました。${detail || "原因不明"}`);
+    console.warn("[estimate] All LLMs failed, returning heuristic fallback");
+    return heuristicEstimate(detection, lines_total, lines_non_blank, {
+      claude: lastClaudeError,
+      gemini: lastGeminiError,
+    });
   }
 
   let parsed: ParsedLLMResponse;
@@ -295,4 +292,94 @@ export async function estimateCode(req: EstimateRequest): Promise<EstimateResult
 function clampStar(v: number): 1 | 2 | 3 | 4 | 5 {
   const r = Math.max(1, Math.min(5, Math.round(v)));
   return r as 1 | 2 | 3 | 4 | 5;
+}
+
+// Few-shot から言語マッチで近い事例を抽出する SimilarCase 化
+function makeSimilarCase(id: string, similarity_score: number, rationale: string): SimilarCase | null {
+  const found = fewshot.cases.find((c) => c.id === id);
+  if (!found) return null;
+  const links = (found as { links?: { museum_url?: string | null; zenn_url?: string | null; article_url?: string | null; source_repo_url?: string | null } }).links;
+  return {
+    id: found.id,
+    name: found.name,
+    source_language: found.source.language,
+    original_lines: found.source.original_lines,
+    converted_lines: found.target.converted_lines,
+    reduction_rate: found.metrics.reduction_rate,
+    similarity_score: Math.max(0, Math.min(1, similarity_score)),
+    rationale,
+    museum_url: links?.museum_url ?? null,
+    zenn_url: links?.zenn_url ?? null,
+    article_url: links?.article_url ?? null,
+    source_repo_url: links?.source_repo_url ?? null,
+  };
+}
+
+// AI 全滅時の代替: 言語判定 + 行数 + Few-shot 経験則だけで見積もる
+function heuristicEstimate(
+  detection: LanguageDetectionResult,
+  lines_total: number,
+  lines_non_blank: number,
+  errors: { claude?: string | null; gemini?: string | null }
+): EstimateResult {
+  const lang = detection.language;
+
+  // 言語別の標準値
+  const profile: { stars: 1 | 2 | 3 | 4 | 5; reductionMin: number; reductionMax: number; preferredIds: string[] } = (() => {
+    switch (lang) {
+      case "COBOL":     return { stars: 3, reductionMin: 0.70, reductionMax: 0.93, preferredIds: ["acas_gl", "carddemo"] };
+      case "PL/I":      return { stars: 4, reductionMin: 0.85, reductionMax: 0.92, preferredIds: ["habitat"] };
+      case "Fortran":   return { stars: 3, reductionMin: 0.15, reductionMax: 0.40, preferredIds: ["saturn_mag"] };
+      case "MUMPS":     return { stars: 5, reductionMin: 0.70, reductionMax: 0.85, preferredIds: ["vista_problemlist"] };
+      case "RPG":       return { stars: 4, reductionMin: 0.55, reductionMax: 0.70, preferredIds: ["rpg_custmast"] };
+      case "VB6":       return { stars: 2, reductionMin: 0.80, reductionMax: 0.92, preferredIds: ["vb6_pos"] };
+      case "Ada":       return { stars: 4, reductionMin: 0.90, reductionMax: 0.98, preferredIds: ["whitakers_words"] };
+      case "Java":      return { stars: 2, reductionMin: 0.30, reductionMax: 0.60, preferredIds: ["mako_vm"] };
+      case "C":         return { stars: 3, reductionMin: 0.60, reductionMax: 0.98, preferredIds: ["hengband_web", "hengband_rust"] };
+      case "C++":       return { stars: 3, reductionMin: 0.40, reductionMax: 0.75, preferredIds: ["hengband_rust"] };
+      case "Pascal":    return { stars: 2, reductionMin: 0.50, reductionMax: 0.80, preferredIds: [] };
+      case "BASIC":     return { stars: 2, reductionMin: 0.70, reductionMax: 0.90, preferredIds: ["vb6_pos"] };
+      case "Assembler": return { stars: 5, reductionMin: 0.30, reductionMax: 0.70, preferredIds: ["carddemo"] };
+      default:          return { stars: 3, reductionMin: 0.40, reductionMax: 0.80, preferredIds: [] };
+    }
+  })();
+
+  // 行数 → 工数（人日）
+  const baseDays = (() => {
+    if (lines_total < 1000) return [5, 15];
+    if (lines_total < 10000) return [10, 40];
+    if (lines_total < 100000) return [25, 80];
+    return [40, 120];
+  })();
+  const mul = profile.stars >= 4 ? 1.5 : profile.stars <= 2 ? 0.8 : 1;
+  const workdays_min = Math.max(1, Math.round(baseDays[0] * mul));
+  const workdays_max = Math.max(workdays_min + 1, Math.round(baseDays[1] * mul));
+
+  const similar_cases = profile.preferredIds
+    .map((id) => makeSimilarCase(id, 0.6, `言語マッチ (${lang}) による参照（AI による詳細マッチングは未実行）`))
+    .filter((x): x is SimilarCase => x !== null);
+
+  const caveats: string[] = [
+    "AI 推論サービスが応答しなかったため、言語判定と過去事例の経験則のみで見積もりました。精度は通常より低下します。",
+    "数分後に再実行すると AI による詳細推論が利用できる可能性があります。",
+  ];
+  if (errors.claude) caveats.push(`Claude エラー: ${errors.claude.slice(0, 100)}`);
+  if (errors.gemini) caveats.push(`Gemini エラー: ${errors.gemini.slice(0, 100)}`);
+
+  return {
+    detection,
+    lines_total,
+    lines_non_blank,
+    difficulty_stars: profile.stars,
+    reduction_range: { min: profile.reductionMin, max: profile.reductionMax },
+    workdays_range: { min: workdays_min, max: workdays_max },
+    similar_cases,
+    notes: [
+      `${lang} の標準的な変換プロファイルを適用しました。`,
+      `元コード ${lines_total.toLocaleString()} 行、難易度 ★${profile.stars} の経験則ベース。`,
+    ],
+    caveats,
+    model_used: "heuristic-fallback",
+    is_heuristic_fallback: true,
+  };
 }
