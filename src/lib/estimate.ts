@@ -131,8 +131,9 @@ async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise
 
 async function callGemini(systemPrompt: string, userPrompt: string): Promise<{ text: string } | null> {
   const keys = getGeminiKeys();
-  if (keys.length === 0) return null;
+  if (keys.length === 0) { lastGeminiError = "GEMINI_API_KEY not set"; return null; }
 
+  const errors: string[] = [];
   for (let i = 0; i < keys.length; i++) {
     try {
       const genAI = new GoogleGenerativeAI(keys[i]);
@@ -147,8 +148,10 @@ async function callGemini(systemPrompt: string, userPrompt: string): Promise<{ t
       const result = await withTimeout(model.generateContent(userPrompt), 5_000, `gemini key ${i + 1}`);
       const text = result.response.text();
       if (text && text.trim().length > 0) return { text };
+      errors.push(`key${i + 1}: empty response`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`key${i + 1}: ${msg.slice(0, 100)}`);
       if (msg.includes("timeout") || msg.includes("429") || msg.includes("500") || msg.toLowerCase().includes("quota")) {
         console.warn(`[gemini] key ${i + 1} skipped: ${msg.slice(0, 80)}`);
         continue;
@@ -156,12 +159,16 @@ async function callGemini(systemPrompt: string, userPrompt: string): Promise<{ t
       console.error(`[gemini] key ${i + 1} error:`, msg);
     }
   }
+  lastGeminiError = errors.join("; ").slice(0, 200);
   return null;
 }
 
+let lastClaudeError: string | null = null;
+let lastGeminiError: string | null = null;
+
 async function callClaudeFallback(systemPrompt: string, userPrompt: string): Promise<{ text: string } | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) { lastClaudeError = "ANTHROPIC_API_KEY not set"; return null; }
 
   try {
     const client = new Anthropic({ apiKey });
@@ -182,7 +189,9 @@ async function callClaudeFallback(systemPrompt: string, userPrompt: string): Pro
       .trim();
     return { text };
   } catch (e) {
-    console.error("[claude-fallback] error:", e instanceof Error ? e.message : String(e));
+    const msg = e instanceof Error ? e.message : String(e);
+    lastClaudeError = msg.slice(0, 200);
+    console.error("[claude-fallback] error:", msg);
     return null;
   }
 }
@@ -217,7 +226,11 @@ export async function estimateCode(req: EstimateRequest): Promise<EstimateResult
   }
 
   if (!llmResult) {
-    throw new Error("AI 呼び出しに失敗しました。GEMINI_API_KEY / ANTHROPIC_API_KEY のいずれも未設定か、すべてレート制限中です。");
+    const detail = [
+      lastClaudeError ? `Claude: ${lastClaudeError}` : null,
+      lastGeminiError ? `Gemini: ${lastGeminiError}` : null,
+    ].filter(Boolean).join(" | ");
+    throw new Error(`AI 呼び出しに失敗しました。${detail || "原因不明"}`);
   }
 
   let parsed: ParsedLLMResponse;
