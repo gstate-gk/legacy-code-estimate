@@ -17,7 +17,8 @@ G.state チームが過去に完了した **11件の実変換実績**（Issue #4
 - **Framework**: Next.js 16 (App Router) + Turbopack
 - **Language**: TypeScript
 - **UI**: Tailwind CSS v4
-- **LLM**: Gemini 2.5 Flash（優先） / Claude Haiku 4.5（フォールバック）
+- **LLM**: Gemini 2.5 Flash 専用（複数キーローテーション、無料枠活用）
+- **障害時**: 言語判定 + Few-shot 経験則のヒューリスティック・フォールバック
 - **ホスティング**: Vercel
 
 ## セットアップ
@@ -44,7 +45,9 @@ Vercel ダッシュボードで以下の環境変数を設定：
 
 - `GEMINI_API_KEY`（必須）
 - `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`（任意、レート制限ローテーション用）
-- `ANTHROPIC_API_KEY`（任意、Gemini が全枯渇したとき用フォールバック）
+
+Gemini API が応答しなかった場合は **言語判定 + 過去事例の経験則** で見積もりを返す
+ヒューリスティック・フォールバックが自動的に動作します（無課金）。
 
 ## アーキテクチャ
 

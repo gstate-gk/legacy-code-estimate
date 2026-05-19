@@ -1,10 +1,10 @@
 // レガシーコード見積もりエンジン
-// LLM: Gemini 2.5 Flash 優先 / Claude Haiku フォールバック
+// LLM: Gemini 2.5 Flash 専用（複数キーローテーション）
+// Gemini 障害時はヒューリスティック・フォールバック
 // 入力: 貼り付けられたコード文字列
 // 出力: 言語判定 + 過去事例ベースの規模・難易度・削減率・工数見積もり
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import Anthropic from "@anthropic-ai/sdk";
 import {
   detectLanguage,
   countLines,
@@ -14,7 +14,6 @@ import {
 import fewshot from "../../data/fewshot_cases.json";
 
 const GEMINI_MODEL = "gemini-2.5-flash";
-const CLAUDE_FALLBACK_MODEL = "claude-haiku-4-5-20251001";
 
 export interface EstimateRequest {
   code: string;
@@ -134,8 +133,21 @@ async function callGemini(systemPrompt: string, userPrompt: string): Promise<{ t
   const keys = getGeminiKeys();
   if (keys.length === 0) { lastGeminiError = "GEMINI_API_KEY not set"; return null; }
 
+  // Vercel 関数全体で15秒を使い切らないように予算を分配
+  // 1個目: 8秒、残り時間に応じて2個目以降を試行
+  const start = Date.now();
+  const TOTAL_BUDGET_MS = 14_000;
+
   const errors: string[] = [];
   for (let i = 0; i < keys.length; i++) {
+    const elapsed = Date.now() - start;
+    const remaining = TOTAL_BUDGET_MS - elapsed;
+    if (remaining < 3_000) {
+      errors.push(`key${i + 1}: budget exhausted (${remaining}ms left)`);
+      break;
+    }
+    const timeout = Math.min(8_000, remaining);
+
     try {
       const genAI = new GoogleGenerativeAI(keys[i]);
       const model = genAI.getGenerativeModel({
@@ -146,60 +158,21 @@ async function callGemini(systemPrompt: string, userPrompt: string): Promise<{ t
           responseMimeType: "application/json",
         },
       });
-      const result = await withTimeout(model.generateContent(userPrompt), 2_500, `gemini key ${i + 1}`);
+      const result = await withTimeout(model.generateContent(userPrompt), timeout, `gemini key ${i + 1}`);
       const text = result.response.text();
       if (text && text.trim().length > 0) return { text };
       errors.push(`key${i + 1}: empty response`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`key${i + 1}: ${msg.slice(0, 100)}`);
-      if (msg.includes("timeout") || msg.includes("429") || msg.includes("500") || msg.toLowerCase().includes("quota")) {
-        console.warn(`[gemini] key ${i + 1} skipped: ${msg.slice(0, 80)}`);
-        continue;
-      }
-      console.error(`[gemini] key ${i + 1} error:`, msg);
+      console.warn(`[gemini] key ${i + 1} failed (${timeout}ms): ${msg.slice(0, 120)}`);
     }
   }
   lastGeminiError = errors.join("; ").slice(0, 200);
   return null;
 }
 
-let lastClaudeError: string | null = null;
 let lastGeminiError: string | null = null;
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function callClaudeFallback(systemPrompt: string, userPrompt: string): Promise<{ text: string } | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) { lastClaudeError = "ANTHROPIC_API_KEY not set"; return null; }
-
-  const client = new Anthropic({ apiKey });
-  let lastErr: string | null = null;
-  try {
-    const response = await withTimeout(
-      client.messages.create({
-        model: CLAUDE_FALLBACK_MODEL,
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
-      }),
-      7_000,
-      "claude"
-    );
-    const text = response.content
-      .filter((c): c is Anthropic.TextBlock => c.type === "text")
-      .map((c) => c.text)
-      .join("\n")
-      .trim();
-    return { text };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    lastErr = msg.slice(0, 200);
-    console.error(`[claude] error:`, msg);
-  }
-  lastClaudeError = lastErr;
-  return null;
-}
 
 function extractJSON(text: string): string {
   const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
@@ -219,23 +192,15 @@ export async function estimateCode(req: EstimateRequest): Promise<EstimateResult
   const systemPrompt = buildSystemPrompt();
   const userPrompt = buildUserPrompt(req, detection, lines_total);
 
-  // Vercel Hobby プランの 10秒制限内で確実に応答するため、Claude を優先。
-  // Phase 1 検証では Claude Haiku が 5-8秒で安定。Gemini は無料枠で予測不能。
-  let llmResult = await callClaudeFallback(systemPrompt, userPrompt);
-  let model_used = CLAUDE_FALLBACK_MODEL;
+  // Gemini 2.5 Flash 専用。複数キーローテーションで無料枠を活用。
+  const llmResult = await callGemini(systemPrompt, userPrompt);
+  const model_used = GEMINI_MODEL;
 
-  if (!llmResult) {
-    console.warn("[estimate] Claude failed, trying Gemini fallback");
-    llmResult = await callGemini(systemPrompt, userPrompt);
-    model_used = GEMINI_MODEL;
-  }
-
-  // AI 呼び出しがすべて失敗した場合、Few-shot から言語マッチで近い事例を返す
+  // Gemini 失敗時は Few-shot から言語マッチで近い事例を返す
   // ヒューリスティック・フォールバック
   if (!llmResult) {
-    console.warn("[estimate] All LLMs failed, returning heuristic fallback");
+    console.warn("[estimate] Gemini failed, returning heuristic fallback");
     return heuristicEstimate(detection, lines_total, lines_non_blank, {
-      claude: lastClaudeError,
       gemini: lastGeminiError,
     });
   }
@@ -320,7 +285,7 @@ function heuristicEstimate(
   detection: LanguageDetectionResult,
   lines_total: number,
   lines_non_blank: number,
-  errors: { claude?: string | null; gemini?: string | null }
+  errors: { gemini?: string | null }
 ): EstimateResult {
   const lang = detection.language;
 
@@ -360,10 +325,9 @@ function heuristicEstimate(
     .filter((x): x is SimilarCase => x !== null);
 
   const caveats: string[] = [
-    "AI 推論サービスが応答しなかったため、言語判定と過去事例の経験則のみで見積もりました。精度は通常より低下します。",
+    "Gemini API が応答しなかったため、言語判定と過去事例の経験則のみで見積もりました。精度は通常より低下します。",
     "数分後に再実行すると AI による詳細推論が利用できる可能性があります。",
   ];
-  if (errors.claude) caveats.push(`Claude エラー: ${errors.claude.slice(0, 100)}`);
   if (errors.gemini) caveats.push(`Gemini エラー: ${errors.gemini.slice(0, 100)}`);
 
   return {

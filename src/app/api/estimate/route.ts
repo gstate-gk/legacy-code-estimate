@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { estimateCode } from "@/lib/estimate";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 15;
 
 export async function POST(req: NextRequest) {
   try {
