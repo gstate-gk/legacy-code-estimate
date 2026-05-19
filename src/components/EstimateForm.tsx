@@ -1,13 +1,79 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { EstimateResult } from "@/lib/estimate";
+import { encodeShare, decodeShare } from "@/lib/sharePermalink";
+
+type InputMode = "paste" | "file" | "github";
+
+const MAX_FILE_BYTES = 200_000;
 
 export default function EstimateForm() {
+  const [mode, setMode] = useState<InputMode>("paste");
   const [code, setCode] = useState("");
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [githubUrl, setGithubUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<EstimateResult | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [restoredFromUrl, setRestoredFromUrl] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // URL の ?r= パラメータがあれば見積もり結果として復元
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("r");
+    if (token) {
+      const decoded = decodeShare(token);
+      if (decoded) {
+        setResult(decoded.result);
+        if (decoded.preview) setCode(decoded.preview);
+        setRestoredFromUrl(true);
+      } else {
+        setError("共有 URL の内容を復号できませんでした（壊れているか、古いバージョン）。");
+      }
+    }
+  }, []);
+
+  function copyShareUrl() {
+    if (!result) return;
+    const token = encodeShare(result, code.slice(0, 200));
+    const shareUrl = `${window.location.origin}${window.location.pathname}?r=${token}`;
+    navigator.clipboard.writeText(shareUrl).then(
+      () => { setShareCopied(true); setTimeout(() => setShareCopied(false), 2500); },
+      () => { setError("URL のコピーに失敗しました。"); }
+    );
+  }
+
+  const handleFile = useCallback(async (file: File) => {
+    setError(null);
+    if (file.size > MAX_FILE_BYTES) {
+      setError(`ファイルが大きすぎます (${file.size.toLocaleString()} B)。${MAX_FILE_BYTES.toLocaleString()} B 以内にしてください。`);
+      return;
+    }
+    try {
+      const text = await file.text();
+      setCode(text);
+      setFileName(file.name);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ファイル読み込みエラー");
+    }
+  }, []);
+
+  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (f) handleFile(f);
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) handleFile(f);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -16,10 +82,28 @@ export default function EstimateForm() {
     setLoading(true);
 
     try {
+      let payload: { code: string };
+
+      if (mode === "github") {
+        if (!githubUrl) throw new Error("GitHub URL を入力してください。");
+        const r = await fetch("/api/fetch-github", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: githubUrl }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d?.error || "GitHub からの取得に失敗しました。");
+        payload = { code: d.code };
+        setCode(d.code);
+        setFileName(d.source_label || githubUrl);
+      } else {
+        payload = { code };
+      }
+
       const res = await fetch("/api/estimate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -34,32 +118,125 @@ export default function EstimateForm() {
     }
   }
 
+  const canSubmit =
+    !loading &&
+    ((mode === "github" && githubUrl.trim().length > 10) ||
+      ((mode === "paste" || mode === "file") && code.length >= 20));
+
   return (
     <div className="space-y-6">
+      <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
+        <TabButton active={mode === "paste"} onClick={() => setMode("paste")}>
+          貼り付け
+        </TabButton>
+        <TabButton active={mode === "file"} onClick={() => setMode("file")}>
+          ファイル
+        </TabButton>
+        <TabButton active={mode === "github"} onClick={() => setMode("github")}>
+          GitHub URL
+        </TabButton>
+      </div>
+
       <form onSubmit={onSubmit} className="space-y-3">
-        <label className="block text-sm font-medium">
-          評価したいコード（10万行・20万文字までの範囲で）
-        </label>
-        <textarea
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="ここに COBOL / PL/I / Fortran / MUMPS / RPG / VB6 / Ada / Java 等のコードを貼り付け..."
-          className="w-full h-64 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          spellCheck={false}
-          required
-          minLength={20}
-        />
-        <div className="flex items-center gap-3">
+        {mode === "paste" && (
+          <>
+            <label className="block text-sm font-medium">
+              評価したいコード（20万文字以内）
+            </label>
+            <textarea
+              value={code}
+              onChange={(e) => { setCode(e.target.value); setFileName(null); }}
+              placeholder="ここに COBOL / PL/I / Fortran / MUMPS / RPG / VB6 / Ada / Java 等のコードを貼り付け..."
+              className="w-full h-64 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              spellCheck={false}
+              minLength={20}
+            />
+          </>
+        )}
+
+        {mode === "file" && (
+          <>
+            <label className="block text-sm font-medium">
+              コードファイルをアップロード（20万バイト以内）
+            </label>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={onDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`flex flex-col items-center justify-center h-48 rounded border-2 border-dashed cursor-pointer transition-colors ${
+                isDragging
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-950"
+                  : "border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:border-blue-400"
+              }`}
+            >
+              <div className="text-sm font-medium">
+                {fileName ? `📄 ${fileName}` : "ファイルをドロップ or クリックして選択"}
+              </div>
+              <div className="mt-2 text-xs text-zinc-500">
+                .cob / .cbl / .pli / .for / .f / .f90 / .mumps / .m / .rpg / .frm / .ada / .adb / .ads / .java / .c / .h など
+              </div>
+              {code.length > 0 && fileName && (
+                <div className="mt-3 text-xs text-emerald-700 dark:text-emerald-500">
+                  読み込み済み: {code.length.toLocaleString()} 文字 / {code.split(/\r?\n/).length.toLocaleString()} 行
+                </div>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={onPickFile}
+              accept=".cob,.cbl,.cobol,.pli,.pl1,.for,.f,.f77,.f90,.f95,.mumps,.m,.rpg,.rpgle,.sqlrpgle,.frm,.cls,.bas,.vb,.ada,.adb,.ads,.java,.c,.h,.cpp,.hpp,.cs,.pas,.txt"
+              className="hidden"
+            />
+          </>
+        )}
+
+        {mode === "github" && (
+          <>
+            <label className="block text-sm font-medium">
+              GitHub 上のファイル URL
+            </label>
+            <input
+              type="url"
+              value={githubUrl}
+              onChange={(e) => setGithubUrl(e.target.value)}
+              placeholder="https://github.com/owner/repo/blob/branch/path/to/file.cob"
+              className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-zinc-500">
+              公開リポジトリの単一ファイル（または raw URL）に対応。ファイル単位で評価します。
+            </p>
+            {code.length > 0 && fileName && (
+              <p className="text-xs text-emerald-700 dark:text-emerald-500">
+                取得済み: {fileName} ({code.length.toLocaleString()} 文字)
+              </p>
+            )}
+          </>
+        )}
+
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             type="submit"
-            disabled={loading || code.length < 20}
+            disabled={!canSubmit}
             className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "見積もり中..." : "見積もる"}
           </button>
-          <span className="text-xs text-zinc-500">
-            {code.length} 文字 / {code.split(/\r?\n/).length} 行
-          </span>
+          {(mode === "paste" || mode === "file") && code.length > 0 && (
+            <span className="text-xs text-zinc-500">
+              {code.length.toLocaleString()} 文字 / {code.split(/\r?\n/).length.toLocaleString()} 行
+            </span>
+          )}
+          {(mode === "paste" || mode === "file") && code.length > 0 && (
+            <button
+              type="button"
+              onClick={() => { setCode(""); setFileName(null); setResult(null); setError(null); }}
+              className="text-xs text-zinc-500 hover:text-zinc-700 underline"
+            >
+              クリア
+            </button>
+          )}
         </div>
       </form>
 
@@ -69,8 +246,43 @@ export default function EstimateForm() {
         </div>
       )}
 
-      {result && <ResultPanel result={result} />}
+      {result && (
+        <>
+          {restoredFromUrl && (
+            <div className="rounded border border-blue-300 bg-blue-50 dark:bg-blue-950 dark:border-blue-800 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
+              共有 URL から見積もり結果を復元しました。新しいコードで再評価することもできます。
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">見積もり結果</h2>
+            <button
+              type="button"
+              onClick={copyShareUrl}
+              className="rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            >
+              {shareCopied ? "✓ コピーしました" : "🔗 共有 URL をコピー"}
+            </button>
+          </div>
+          <ResultPanel result={result} />
+        </>
+      )}
     </div>
+  );
+}
+
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+        active
+          ? "border-blue-600 text-blue-700 dark:text-blue-400"
+          : "border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -140,6 +352,50 @@ function ResultPanel({ result }: { result: EstimateResult }) {
                   ・ 削減率 {pct(sc.reduction_rate)}
                 </div>
                 <p className="mt-2 text-sm">{sc.rationale}</p>
+                {(sc.museum_url || sc.zenn_url || sc.article_url || sc.source_repo_url) && (
+                  <div className="mt-3 flex flex-wrap gap-3 text-xs">
+                    {sc.zenn_url && (
+                      <a
+                        href={sc.zenn_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-700 dark:text-blue-400 hover:underline"
+                      >
+                        変換ノート（Zenn） →
+                      </a>
+                    )}
+                    {sc.article_url && !sc.zenn_url && (
+                      <a
+                        href={sc.article_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-700 dark:text-blue-400 hover:underline"
+                      >
+                        変換ノート（GitHub） →
+                      </a>
+                    )}
+                    {sc.museum_url && (
+                      <a
+                        href={sc.museum_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-700 dark:text-blue-400 hover:underline"
+                      >
+                        Museum で見る →
+                      </a>
+                    )}
+                    {sc.source_repo_url && (
+                      <a
+                        href={sc.source_repo_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-zinc-600 dark:text-zinc-400 hover:underline"
+                      >
+                        元コード →
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -163,6 +419,10 @@ function ResultPanel({ result }: { result: EstimateResult }) {
           </ul>
         </div>
       )}
+
+      <div className="text-xs text-zinc-400 text-right">
+        モデル: {result.model_used}
+      </div>
     </div>
   );
 }

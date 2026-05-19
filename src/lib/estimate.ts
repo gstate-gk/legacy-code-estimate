@@ -29,6 +29,10 @@ export interface SimilarCase {
   reduction_rate: number;
   similarity_score: number;
   rationale: string;
+  museum_url?: string | null;
+  zenn_url?: string | null;
+  article_url?: string | null;
+  source_repo_url?: string | null;
 }
 
 export interface EstimateResult {
@@ -240,9 +244,10 @@ export async function estimateCode(req: EstimateRequest): Promise<EstimateResult
   }
 
   const similar_cases: SimilarCase[] = (parsed.similar_cases || [])
-    .map((sc) => {
+    .map((sc): SimilarCase | null => {
       const found = fewshot.cases.find((c) => c.id === sc.id);
       if (!found) return null;
+      const links = (found as { links?: { museum_url?: string | null; zenn_url?: string | null; article_url?: string | null; source_repo_url?: string | null } }).links;
       return {
         id: found.id,
         name: found.name,
@@ -252,6 +257,10 @@ export async function estimateCode(req: EstimateRequest): Promise<EstimateResult
         reduction_rate: found.metrics.reduction_rate,
         similarity_score: Math.max(0, Math.min(1, sc.similarity_score)),
         rationale: sc.rationale,
+        museum_url: links?.museum_url ?? null,
+        zenn_url: links?.zenn_url ?? null,
+        article_url: links?.article_url ?? null,
+        source_repo_url: links?.source_repo_url ?? null,
       };
     })
     .filter((x): x is SimilarCase => x !== null);

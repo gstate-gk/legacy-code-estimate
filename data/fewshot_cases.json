@@ -1,5 +1,5 @@
 {
-  "$schema_version": "1.0",
+  "$schema_version": "1.1",
   "description": "Few-shot reference cases for legacy-code-estimate. 11 real conversion projects (2026年完了). Used to anchor AI estimates with verified workload/reduction data.",
   "cases": [
     {
@@ -33,7 +33,13 @@
         "勘定科目体系・仕訳ロジックを業務要件として再構築"
       ],
       "notable_features": "100%動作する実会計システムを再構築。COBOL→Python変換の参照実装",
-      "category": "業務系・会計"
+      "category": "業務系・会計",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_03_ACAS_GL_ZENN.md",
+        "source_repo_url": "https://github.com/VincentBCoen/ACAS-Sources"
+      }
     },
     {
       "id": "carddemo",
@@ -65,7 +71,13 @@
         "メインフレームを動かさずに紙の仕様書から変換（仕様書性が高いコード）"
       ],
       "notable_features": "メインフレームを実機なしで変換完了。仕様書ベース変換の好例",
-      "category": "業務系・金融"
+      "category": "業務系・金融",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_05_CARDDEMO_ZENN.md",
+        "source_repo_url": "https://github.com/aws-samples/aws-mainframe-modernization-carddemo"
+      }
     },
     {
       "id": "vb6_pos",
@@ -96,7 +108,13 @@
         "イベントハンドラの状態管理を React hooks に変換"
       ],
       "notable_features": "業務系緑画面5パターン（テーブル/ボタン/モーダル/API+state/楽観的ロック）に収まる",
-      "category": "業務系・小売"
+      "category": "業務系・小売",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_06_VB6_POS_ZENN.md",
+        "source_repo_url": "https://github.com/burnjoe/pos-retail"
+      }
     },
     {
       "id": "vista_problemlist",
@@ -128,7 +146,13 @@
         "MUMPS 独自の参照渡し・スパース配列を Python に翻訳"
       ],
       "notable_features": "MUMPS という極めて特殊な言語の参照変換実装",
-      "category": "業務系・医療"
+      "category": "業務系・医療",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_09_MUMPS_VISTA_ZENN.md",
+        "source_repo_url": "https://github.com/WorldVistA/VistA-M"
+      }
     },
     {
       "id": "habitat",
@@ -159,7 +183,13 @@
         "1985年実装の歴史的価値を保ちつつブラウザに移植"
       ],
       "notable_features": "世界初の商用GUI MMO。歴史的コードを動く形で再現",
-      "category": "業務系・通信/MMO"
+      "category": "業務系・通信/MMO",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_07_HABITAT_ZENN.md",
+        "source_repo_url": "https://github.com/Museum-of-Art-and-Digital-Entertainment/habitat"
+      }
     },
     {
       "id": "saturn_mag",
@@ -191,7 +221,13 @@
         "数値計算は『削れない』— ロジックそのものが本体"
       ],
       "notable_features": "シリーズ最低削減率（22%）。科学計算は削減対象が限られる",
-      "category": "科学計算"
+      "category": "科学計算",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_10_FORTRAN_SATURN_ZENN.md",
+        "source_repo_url": null
+      }
     },
     {
       "id": "hengband_web",
@@ -222,7 +258,13 @@
         "Lua データファイルをそのまま流用（コードは削れるがデータは残す）"
       ],
       "notable_features": "シリーズ最高削減率 98.7%。データ駆動アーキテクチャの恩恵",
-      "category": "ゲーム・ローグライク"
+      "category": "ゲーム・ローグライク",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_08_HENGBAND_WEB_ZENN.md",
+        "source_repo_url": "https://github.com/hengband/hengband"
+      }
     },
     {
       "id": "hengband_rust",
@@ -253,7 +295,13 @@
         "Rust の型システムで C のセグフォルト要因を排除"
       ],
       "notable_features": "シリーズ唯一の『言語進化軸』。Web化ではなくモダン安全言語への移行",
-      "category": "ゲーム・言語進化軸"
+      "category": "ゲーム・言語進化軸",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_03B_HENGBAND_RUST_ZENN.md",
+        "source_repo_url": "https://github.com/hengband/hengband"
+      }
     },
     {
       "id": "rpg_custmast",
@@ -284,7 +332,13 @@
         "整理されたコードは『削れない』— 削減率が低い理由"
       ],
       "notable_features": "整理されたコードは削減率が下がる。コード品質と削減率は反比例",
-      "category": "業務系・IBM i"
+      "category": "業務系・IBM i",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_04_RPG_CUSTMAST_ZENN.md",
+        "source_repo_url": null
+      }
     },
     {
       "id": "whitakers_words",
@@ -316,7 +370,13 @@
         "コードは削れるがデータは残す（学術系の鉄則）"
       ],
       "notable_features": "Ada を生み出した張本人の遺作。データ駆動の宝",
-      "category": "学術・人文"
+      "category": "学術・人文",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_24_WHITAKERS_WORDS_ZENN.md",
+        "source_repo_url": "https://github.com/mk270/whitakers-words"
+      }
     },
     {
       "id": "mako_vm",
@@ -349,7 +409,13 @@
         "Forth コンパイラ移植はスコープ外と判断（VMだけで完結）"
       ],
       "notable_features": "シリーズ唯一の『環境移植軸』。VMコアは削れない（-5.7%増加）",
-      "category": "VM・言語処理系"
+      "category": "VM・言語処理系",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_25_MAKO_VM_ZENN.md",
+        "source_repo_url": "https://github.com/JohnEarnest/Mako"
+      }
     }
   ],
   "summary": {
