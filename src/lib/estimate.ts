@@ -166,12 +166,18 @@ async function callGemini(systemPrompt: string, userPrompt: string): Promise<{ t
 let lastClaudeError: string | null = null;
 let lastGeminiError: string | null = null;
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function callClaudeFallback(systemPrompt: string, userPrompt: string): Promise<{ text: string } | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) { lastClaudeError = "ANTHROPIC_API_KEY not set"; return null; }
 
+  const client = new Anthropic({ apiKey });
+  // 529 Overloaded はリトライ可能。短い指数バックオフで2回まで再試行
+  let lastErr: string | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await sleep(400);
   try {
-    const client = new Anthropic({ apiKey });
     const response = await withTimeout(
       client.messages.create({
         model: CLAUDE_FALLBACK_MODEL,
@@ -179,7 +185,7 @@ async function callClaudeFallback(systemPrompt: string, userPrompt: string): Pro
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
       }),
-      8_500,
+      3_500,
       "claude"
     );
     const text = response.content
@@ -190,10 +196,14 @@ async function callClaudeFallback(systemPrompt: string, userPrompt: string): Pro
     return { text };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    lastClaudeError = msg.slice(0, 200);
-    console.error("[claude-fallback] error:", msg);
-    return null;
+    lastErr = msg.slice(0, 200);
+    console.error(`[claude] attempt ${attempt + 1} error:`, msg);
+    // 529 / 503 / overloaded はリトライ可能、他は即諦める
+    if (!/(529|503|overloaded|timeout|ECONNRESET)/i.test(msg)) break;
   }
+  }
+  lastClaudeError = lastErr;
+  return null;
 }
 
 function extractJSON(text: string): string {
