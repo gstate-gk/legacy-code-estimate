@@ -59,6 +59,26 @@ interface ParsedLLMResponse {
   caveats: string[];
 }
 
+// LLM に渡すコンパクトな Few-shot — UI 表示用 links や key_challenges は除外して
+// プロンプトサイズを削減（timeout 対策）
+function buildLeanFewshot() {
+  return fewshot.cases.map((c) => ({
+    id: c.id,
+    name: c.name,
+    source_language: c.source.language,
+    paradigm: c.source.paradigm,
+    era: c.source.era,
+    original_lines: c.source.original_lines,
+    converted_lines: c.target.converted_lines,
+    reduction_rate: c.metrics.reduction_rate,
+    difficulty_stars: c.metrics.difficulty_stars,
+    workdays_range: [c.metrics.workdays_min, c.metrics.workdays_max],
+    domain: c.domain,
+    category: c.category,
+    notable: c.notable_features,
+  }));
+}
+
 function buildSystemPrompt(): string {
   return `あなたはレガシーコードを現代のWebスタック（Python+React / TypeScript+React / Rust 等）に変換する経験豊富なエンジニアです。
 
@@ -108,9 +128,9 @@ function buildSystemPrompt(): string {
 - Few-shot ケースから最も近い1〜3件を選ぶ
 - similarity_score は 0.0〜1.0（同じ言語・同じドメインなら 0.8+）
 
-## Few-shot 実績データ
+## Few-shot 実績データ（11件）
 
-${JSON.stringify(fewshot.cases, null, 2)}
+${JSON.stringify(buildLeanFewshot(), null, 0)}
 
 ## シリーズ全体の傾向
 - 削減率の幅: -5.7%（Mako VM コア部・増加） 〜 98.7%（Hengband Web）
@@ -151,6 +171,13 @@ function getGeminiKeys(): string[] {
   return keys;
 }
 
+async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return await Promise.race([
+    p,
+    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`${label} timeout (${ms}ms)`)), ms)),
+  ]);
+}
+
 async function callGemini(systemPrompt: string, userPrompt: string): Promise<{ text: string } | null> {
   const keys = getGeminiKeys();
   if (keys.length === 0) return null;
@@ -166,13 +193,13 @@ async function callGemini(systemPrompt: string, userPrompt: string): Promise<{ t
           responseMimeType: "application/json",
         },
       });
-      const result = await model.generateContent(userPrompt);
+      const result = await withTimeout(model.generateContent(userPrompt), 20_000, `gemini key ${i + 1}`);
       const text = result.response.text();
       if (text && text.trim().length > 0) return { text };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("429") || msg.includes("500") || msg.toLowerCase().includes("quota")) {
-        console.warn(`[gemini] key ${i + 1} rate-limited, trying next`);
+      if (msg.includes("timeout") || msg.includes("429") || msg.includes("500") || msg.toLowerCase().includes("quota")) {
+        console.warn(`[gemini] key ${i + 1} skipped: ${msg.slice(0, 80)}`);
         continue;
       }
       console.error(`[gemini] key ${i + 1} error:`, msg);
@@ -187,12 +214,16 @@ async function callClaudeFallback(systemPrompt: string, userPrompt: string): Pro
 
   try {
     const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
-      model: CLAUDE_FALLBACK_MODEL,
-      max_tokens: 2048,
-      system: systemPrompt + "\n\nJSON以外の文字は一切出力しないこと。",
-      messages: [{ role: "user", content: userPrompt }],
-    });
+    const response = await withTimeout(
+      client.messages.create({
+        model: CLAUDE_FALLBACK_MODEL,
+        max_tokens: 2048,
+        system: systemPrompt + "\n\nJSON以外の文字は一切出力しないこと。",
+        messages: [{ role: "user", content: userPrompt }],
+      }),
+      30_000,
+      "claude fallback"
+    );
     const text = response.content
       .filter((c): c is Anthropic.TextBlock => c.type === "text")
       .map((c) => c.text)
