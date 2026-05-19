@@ -59,85 +59,36 @@ interface ParsedLLMResponse {
   caveats: string[];
 }
 
-// LLM に渡すコンパクトな Few-shot — UI 表示用 links や key_challenges は除外して
-// プロンプトサイズを削減（timeout 対策）
+// LLM に渡す最小限の Few-shot — Vercel 10秒 timeout 制約のため極限まで圧縮
 function buildLeanFewshot() {
   return fewshot.cases.map((c) => ({
     id: c.id,
-    name: c.name,
-    source_language: c.source.language,
-    paradigm: c.source.paradigm,
-    era: c.source.era,
-    original_lines: c.source.original_lines,
-    converted_lines: c.target.converted_lines,
-    reduction_rate: c.metrics.reduction_rate,
-    difficulty_stars: c.metrics.difficulty_stars,
-    workdays_range: [c.metrics.workdays_min, c.metrics.workdays_max],
+    lang: c.source.language,
+    lines: c.source.original_lines,
+    reduce: c.metrics.reduction_rate,
+    star: c.metrics.difficulty_stars,
+    days: [c.metrics.workdays_min, c.metrics.workdays_max],
     domain: c.domain,
-    category: c.category,
-    notable: c.notable_features,
   }));
 }
 
 function buildSystemPrompt(): string {
-  return `あなたはレガシーコードを現代のWebスタック（Python+React / TypeScript+React / Rust 等）に変換する経験豊富なエンジニアです。
+  return `レガシーコードを現代Webスタック(Python+React 等)に変換するエンジニアとして見積もる。
 
-過去にG.stateチームが完了した **11件の変換実績** を Few-shot 参照データとして与えます。
-このデータに基づいて、ユーザーが貼り付けたコードについて以下を見積もってください。
+出力は純粋なJSONのみ（前後の説明や \`\`\` 禁止）：
 
-## 出力フォーマット
-**必ず以下のJSON形式のみ**を返してください（前後の説明文・コードブロック・マークダウンは禁止）：
+{"difficulty_stars":1-5,"reduction_min":-0.2..1,"reduction_max":-0.2..1,"workdays_min":int,"workdays_max":int,"similar_cases":[{"id":"fewshot_id","similarity_score":0..1,"rationale":"1文"}],"notes":["短文"],"caveats":["短文"]}
 
-{
-  "difficulty_stars": 1-5の整数,
-  "reduction_min": 0.0-1.0の少数（負の値もあり、増加の場合）,
-  "reduction_max": 0.0-1.0の少数,
-  "workdays_min": 整数,
-  "workdays_max": 整数,
-  "similar_cases": [
-    { "id": "fewshot ID", "similarity_score": 0.0-1.0, "rationale": "なぜ似ているかの1〜2文" }
-  ],
-  "notes": ["観察したこと1", "観察したこと2"],
-  "caveats": ["見積もり精度の限界1"]
-}
+基準:
+- 難易度★1=現代対応物あり, 2=主流旧版, 3=整理レガシー(COBOL/Fortran), 4=特殊(PL/I/Ada/MUMPS/RPG), 5=極特殊(HLASM/VM)
+- 削減率: 冗長(COBOL/VB6/PL/I)=70-95%, 整理コード=約60%, 数値計算=約20%, VM/言語処理系=削減なし(マイナス可)
+- 工数(人日,AI伴走): <1k行=5-15, 1-10k=10-40, 10-100k=25-80, >100k=40+, ★4-5は1.5倍
+- 類似度: 同言語同ドメイン=0.8+, 同ドメインのみ=0.5-0.7
 
-## 見積もりの基準
+Few-shot 11件:
+${JSON.stringify(buildLeanFewshot())}
 
-**難易度（difficulty_stars）**:
-- ★1: 現代に直接の対応物がある（モダンVB.NET, Java 8以降など）
-- ★2: 主流言語の古いバージョン
-- ★3: 整理されたレガシー（COBOL/Fortran など、ドキュメント豊富）
-- ★4: 特殊レガシー（PL/I, Ada, MUMPS, RPG IV）
-- ★5: 極めて特殊（IBM HLASM, EBCDIC, 独自VM, 動かせない実機向け）
-
-**削減率レンジ**:
-- 言語の冗長性が高ければ高削減率（COBOL/VB6/PL/I: 70-95%）
-- 整理されたコードは低削減率（RPG: 約60%, Fortran 数値計算: 約20%）
-- VM/言語処理系/アルゴリズム本体は **削減しない**（増加もありうる、Mako VM: -5.7%）
-
-**工数（人日）**:
-- AI伴走（Claude Code 等）前提でレンジを出す
-- 元コード行数の規模感を考慮：
-  - 1,000行未満: 5-15日
-  - 1,000-10,000行: 10-40日
-  - 10,000-100,000行: 25-80日
-  - 100,000行超: 40-100日+
-- 難易度★4-5は1.5倍程度。データ駆動（学術系）は短め
-
-**類似事例**:
-- Few-shot ケースから最も近い1〜3件を選ぶ
-- similarity_score は 0.0〜1.0（同じ言語・同じドメインなら 0.8+）
-
-## Few-shot 実績データ（11件）
-
-${JSON.stringify(buildLeanFewshot(), null, 0)}
-
-## シリーズ全体の傾向
-- 削減率の幅: -5.7%（Mako VM コア部・増加） 〜 98.7%（Hengband Web）
-- 「コードは削れるがデータは残す」（学術系・科学計算系）
-- VM/言語処理系は「環境移植軸」で削減しない
-
-**重要**: 必ず純粋なJSONのみを返してください。前後の説明文、コードブロック記号（\`\`\`）、マークダウンは一切含めないでください。`;
+notes/caveats は各1-2項目、各1文。JSON のみ出力。`;
 }
 
 function buildUserPrompt(req: EstimateRequest, detection: LanguageDetectionResult, lines: number): string {
@@ -217,8 +168,8 @@ async function callClaudeFallback(systemPrompt: string, userPrompt: string): Pro
     const response = await withTimeout(
       client.messages.create({
         model: CLAUDE_FALLBACK_MODEL,
-        max_tokens: 2048,
-        system: systemPrompt + "\n\nJSON以外の文字は一切出力しないこと。",
+        max_tokens: 1024,
+        system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
       }),
       8_500,
