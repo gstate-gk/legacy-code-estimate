@@ -1,0 +1,371 @@
+{
+  "$schema_version": "1.0",
+  "description": "Few-shot reference cases for legacy-code-estimate. 11 real conversion projects (2026年完了). Used to anchor AI estimates with verified workload/reduction data.",
+  "cases": [
+    {
+      "id": "acas_gl",
+      "name": "ACAS GL (Applewood Computers Accounting System — 総勘定元帳モジュール)",
+      "source": {
+        "language": "COBOL",
+        "dialect": "GnuCOBOL 3.2 / メインフレーム起源",
+        "paradigm": "procedural",
+        "era": "1980s-2010s",
+        "original_lines": 12000,
+        "modules": ["sales", "purchase", "general", "stock", "common", "IRS"],
+        "scope": "GLモジュールのみ"
+      },
+      "target": {
+        "frontend": "React + TypeScript + Vite",
+        "backend": "FastAPI + SQLAlchemy + aiosqlite",
+        "converted_lines": 3277
+      },
+      "metrics": {
+        "reduction_rate": 0.73,
+        "difficulty_stars": 3,
+        "workdays_min": 20,
+        "workdays_max": 40
+      },
+      "domain": "会計（勘定元帳・仕訳・財務諸表）",
+      "key_challenges": [
+        "COBOL の DIVISION 構造を React/FastAPI に分解",
+        "GnuCOBOLのBDBバックアップ→SQLiteへ移行",
+        "Current Cycle の状態管理（scycle=0でループする実装の癖を理解）",
+        "勘定科目体系・仕訳ロジックを業務要件として再構築"
+      ],
+      "notable_features": "100%動作する実会計システムを再構築。COBOL→Python変換の参照実装",
+      "category": "業務系・会計"
+    },
+    {
+      "id": "carddemo",
+      "name": "AWS CardDemo (メインフレーム クレジットカード処理デモ)",
+      "source": {
+        "language": "COBOL + IBM Assembler",
+        "dialect": "z/OS Enterprise COBOL",
+        "paradigm": "procedural + CICS",
+        "era": "1990s-2000s",
+        "original_lines": 30451,
+        "scope": "全モジュール"
+      },
+      "target": {
+        "frontend": "React + Vite",
+        "backend": "FastAPI + SQLite",
+        "converted_lines": 2250
+      },
+      "metrics": {
+        "reduction_rate": 0.93,
+        "difficulty_stars": 4,
+        "workdays_min": 30,
+        "workdays_max": 60
+      },
+      "domain": "金融（クレジットカード処理・取引・与信）",
+      "key_challenges": [
+        "CICS BMS 画面定義（緑画面）の React 化",
+        "VSAM ファイルアクセス → SQLite テーブル化",
+        "アセンブラルーチンの Python 再実装",
+        "メインフレームを動かさずに紙の仕様書から変換（仕様書性が高いコード）"
+      ],
+      "notable_features": "メインフレームを実機なしで変換完了。仕様書ベース変換の好例",
+      "category": "業務系・金融"
+    },
+    {
+      "id": "vb6_pos",
+      "name": "POS Retail (VB6 小売店POSシステム)",
+      "source": {
+        "language": "Visual Basic 6",
+        "dialect": "VB6 + ADO + Crystal Reports",
+        "paradigm": "event-driven, form-based",
+        "era": "late 1990s-2000s",
+        "original_lines": 12500
+      },
+      "target": {
+        "frontend": "React + Vite",
+        "backend": "FastAPI + SQLite",
+        "converted_lines": 1414
+      },
+      "metrics": {
+        "reduction_rate": 0.89,
+        "difficulty_stars": 2,
+        "workdays_min": 15,
+        "workdays_max": 30
+      },
+      "domain": "小売（POS・在庫・売上）",
+      "key_challenges": [
+        "VB6 フォーム定義 (.frm) を React コンポーネントへ",
+        "ADO + Access DB → SQLAlchemy + SQLite",
+        "Crystal Reports 出力を PDF/HTML 生成へ",
+        "イベントハンドラの状態管理を React hooks に変換"
+      ],
+      "notable_features": "業務系緑画面5パターン（テーブル/ボタン/モーダル/API+state/楽観的ロック）に収まる",
+      "category": "業務系・小売"
+    },
+    {
+      "id": "vista_problemlist",
+      "name": "VistA Problem List (退役軍人省 電子カルテ問題リスト)",
+      "source": {
+        "language": "MUMPS (M)",
+        "dialect": "WorldVistA M",
+        "paradigm": "hierarchical key-value DB + procedural",
+        "era": "1970s-2010s",
+        "original_lines": 7677,
+        "scope": "Problem List パッケージ"
+      },
+      "target": {
+        "frontend": "React + Vite",
+        "backend": "FastAPI + SQLite",
+        "converted_lines": 1650
+      },
+      "metrics": {
+        "reduction_rate": 0.78,
+        "difficulty_stars": 5,
+        "workdays_min": 25,
+        "workdays_max": 50
+      },
+      "domain": "医療（電子カルテ・診断管理）",
+      "key_challenges": [
+        "MUMPS グローバル変数 ^DPT(...) を SQLite テーブルへ",
+        "DEM^VADPT 等の VistA API パターン理解",
+        "医療業務ロジック（ICD-10対応、AAR等）の現代仕様再構築",
+        "MUMPS 独自の参照渡し・スパース配列を Python に翻訳"
+      ],
+      "notable_features": "MUMPS という極めて特殊な言語の参照変換実装",
+      "category": "業務系・医療"
+    },
+    {
+      "id": "habitat",
+      "name": "LucasArts Habitat (世界初の商用グラフィカルMMO)",
+      "source": {
+        "language": "PL/I (Stratus VOS / TANDEM)",
+        "dialect": "Stratus PL/I + アセンブラ部分あり",
+        "paradigm": "procedural + クライアント/サーバ",
+        "era": "1985-1988",
+        "original_lines": 26218
+      },
+      "target": {
+        "frontend": "React + Vite + Canvas2D",
+        "backend": "FastAPI + WebSocket + aiosqlite",
+        "converted_lines": 2718
+      },
+      "metrics": {
+        "reduction_rate": 0.90,
+        "difficulty_stars": 4,
+        "workdays_min": 25,
+        "workdays_max": 50
+      },
+      "domain": "MMO（バーチャル世界・アバター・チャット）",
+      "key_challenges": [
+        "PL/I のレコード型 (DCL ... LIKE) を TypeScript interface に",
+        "C64 クライアント↔サーバ通信プロトコルを WebSocket に",
+        "オブジェクト指向以前の独自オブジェクトシステム理解",
+        "1985年実装の歴史的価値を保ちつつブラウザに移植"
+      ],
+      "notable_features": "世界初の商用GUI MMO。歴史的コードを動く形で再現",
+      "category": "業務系・通信/MMO"
+    },
+    {
+      "id": "saturn_mag",
+      "name": "Saturn 磁場モデル (NASA Cassini ミッション)",
+      "source": {
+        "language": "Fortran 77",
+        "dialect": "GFortran 互換",
+        "paradigm": "procedural / 数値計算",
+        "era": "1990s-2010s",
+        "original_lines": 2334,
+        "author": "G.K. Stephens, Johns Hopkins APL"
+      },
+      "target": {
+        "frontend": "React + Plotly.js + Vite",
+        "backend": "FastAPI + NumPy",
+        "converted_lines": 1808
+      },
+      "metrics": {
+        "reduction_rate": 0.22,
+        "difficulty_stars": 3,
+        "workdays_min": 8,
+        "workdays_max": 15
+      },
+      "domain": "科学計算（惑星磁場モデル・物理シミュレーション）",
+      "key_challenges": [
+        "球面調和関数の展開ロジック保持（精度死活）",
+        "COMMON ブロックを Python dataclass に",
+        "Fortran 配列 1-indexed と NumPy 0-indexed の差",
+        "数値計算は『削れない』— ロジックそのものが本体"
+      ],
+      "notable_features": "シリーズ最低削減率（22%）。科学計算は削減対象が限られる",
+      "category": "科学計算"
+    },
+    {
+      "id": "hengband_web",
+      "name": "Hengband Web (日本製ローグライク Webブラウザ移植)",
+      "source": {
+        "language": "C + Lua 5.0",
+        "dialect": "K&R + Lua スクリプティング",
+        "paradigm": "procedural + データ駆動スクリプト",
+        "era": "1990s-2020s",
+        "original_lines": 330000
+      },
+      "target": {
+        "frontend": "React + TypeScript + Vite",
+        "backend": "WebAssembly (Emscripten 経由) + JS bridge",
+        "converted_lines": 4245
+      },
+      "metrics": {
+        "reduction_rate": 0.987,
+        "difficulty_stars": 4,
+        "workdays_min": 30,
+        "workdays_max": 60
+      },
+      "domain": "ローグライク（ターン制ダンジョン探索）",
+      "key_challenges": [
+        "EUC-JP → UTF-8 の文字コード変換",
+        "ncurses → HTML5 Canvas/DOM ベース描画",
+        "巨大な C コードベースをコア部のみ抽出",
+        "Lua データファイルをそのまま流用（コードは削れるがデータは残す）"
+      ],
+      "notable_features": "シリーズ最高削減率 98.7%。データ駆動アーキテクチャの恩恵",
+      "category": "ゲーム・ローグライク"
+    },
+    {
+      "id": "hengband_rust",
+      "name": "Hengband Rust (C→Rust 言語進化軸変換)",
+      "source": {
+        "language": "C (Hengband)",
+        "dialect": "K&R + ncurses",
+        "paradigm": "procedural",
+        "era": "1990s-2020s",
+        "original_lines": 330000
+      },
+      "target": {
+        "frontend": "ターミナルUI (pancurses Rust binding)",
+        "backend": "Rust (cargo)",
+        "converted_lines": 13000
+      },
+      "metrics": {
+        "reduction_rate": 0.96,
+        "difficulty_stars": 5,
+        "workdays_min": 40,
+        "workdays_max": 80
+      },
+      "domain": "ローグライク（言語進化軸の参照例）",
+      "key_challenges": [
+        "C のポインタ操作を Rust の所有権・ライフタイムに翻訳",
+        "c2rust（Immunant、DARPA支援）の出力を手で整形",
+        "disjoint borrow を活用した安全な可変参照",
+        "Rust の型システムで C のセグフォルト要因を排除"
+      ],
+      "notable_features": "シリーズ唯一の『言語進化軸』。Web化ではなくモダン安全言語への移行",
+      "category": "ゲーム・言語進化軸"
+    },
+    {
+      "id": "rpg_custmast",
+      "name": "RPG 顧客マスタ (IBM i RPG IV / 5250 サブファイル業務系)",
+      "source": {
+        "language": "RPG IV (IBM i / AS/400)",
+        "dialect": "Free-form RPG (2013以降)",
+        "paradigm": "procedural + 5250 緑画面",
+        "era": "1990s-2010s",
+        "original_lines": 2286
+      },
+      "target": {
+        "frontend": "React + Vite",
+        "backend": "FastAPI + SQLite",
+        "converted_lines": 650
+      },
+      "metrics": {
+        "reduction_rate": 0.63,
+        "difficulty_stars": 4,
+        "workdays_min": 12,
+        "workdays_max": 25
+      },
+      "domain": "IBM i 業務系（顧客マスタ管理）",
+      "key_challenges": [
+        "5250 サブファイル → React テーブルコンポーネント",
+        "DDS 物理ファイル → SQLAlchemy モデル",
+        "RPG IV の指標 (Indicator) → React state",
+        "整理されたコードは『削れない』— 削減率が低い理由"
+      ],
+      "notable_features": "整理されたコードは削減率が下がる。コード品質と削減率は反比例",
+      "category": "業務系・IBM i"
+    },
+    {
+      "id": "whitakers_words",
+      "name": "Whitaker's WORDS (Ada製 ラテン語辞書)",
+      "source": {
+        "language": "Ada (Ada 95)",
+        "dialect": "GNAT 互換",
+        "paradigm": "strongly-typed procedural + パッケージ",
+        "era": "1993-2007",
+        "original_lines": 39000,
+        "author": "Col. William Whitaker (DARPA HOLWG議長、Ada言語開発主導)"
+      },
+      "target": {
+        "frontend": "React + TypeScript + Vite",
+        "backend": "Node.js / TypeScript",
+        "converted_lines": 800
+      },
+      "metrics": {
+        "reduction_rate": 0.98,
+        "difficulty_stars": 4,
+        "workdays_min": 15,
+        "workdays_max": 30
+      },
+      "domain": "学術・人文（ラテン語辞書・形態素解析）",
+      "key_challenges": [
+        "Ada の強い型システム（subtype, variant record）を TypeScript に",
+        "DICTLINE.GEN 等のデータファイルはそのまま流用",
+        "形態素解析の組み合わせ規則を JavaScript で再現",
+        "コードは削れるがデータは残す（学術系の鉄則）"
+      ],
+      "notable_features": "Ada を生み出した張本人の遺作。データ駆動の宝",
+      "category": "学術・人文"
+    },
+    {
+      "id": "mako_vm",
+      "name": "Mako VM (Java製 スタックベース仮想ゲーム機)",
+      "source": {
+        "language": "Java",
+        "dialect": "Java 6+ / AWT + javax.sound",
+        "paradigm": "VM interpreter + Forth系",
+        "era": "2010s",
+        "original_lines": 1965,
+        "author": "John Earnest (Internet Janitor, Octo作者)"
+      },
+      "target": {
+        "frontend": "React + TypeScript + Canvas + Web Audio API",
+        "backend": "なし（静的ホスティング）",
+        "converted_lines": 1064
+      },
+      "metrics": {
+        "reduction_rate": 0.46,
+        "vm_core_reduction_rate": -0.057,
+        "difficulty_stars": 4,
+        "workdays_min": 8,
+        "workdays_max": 15
+      },
+      "domain": "VM・言語処理系（仮想ゲーム機）",
+      "key_challenges": [
+        "Java int 32bit ラップを TypeScript number で再現（| 0 / Math.imul）",
+        "AWT BufferedImage → HTML5 Canvas ImageData",
+        "javax.sound → Web Audio API（ユーザー操作起点起動）",
+        "Forth コンパイラ移植はスコープ外と判断（VMだけで完結）"
+      ],
+      "notable_features": "シリーズ唯一の『環境移植軸』。VMコアは削れない（-5.7%増加）",
+      "category": "VM・言語処理系"
+    }
+  ],
+  "summary": {
+    "total_cases": 11,
+    "reduction_range": {
+      "min": -0.057,
+      "max": 0.987,
+      "min_case": "Mako VM (VMコア)",
+      "max_case": "Hengband Web"
+    },
+    "language_coverage": ["COBOL", "COBOL+ASM", "VB6", "MUMPS", "PL/I", "Fortran 77", "C+Lua", "C→Rust", "RPG IV", "Ada", "Java/Forth"],
+    "domain_coverage": ["会計", "金融", "小売", "医療", "MMO", "科学計算", "ローグライク", "言語進化", "IBM i", "学術・人文", "VM・言語処理系"],
+    "conversion_axes": {
+      "web_migration": 9,
+      "language_evolution": 1,
+      "environment_porting": 1
+    }
+  }
+}
