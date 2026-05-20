@@ -9,6 +9,7 @@ import { getCachedEstimate, putCachedEstimate } from "@/lib/estimateCache";
 import { pushHistory } from "@/lib/estimateHistory";
 import HistoryPanel from "./HistoryPanel";
 import ContactForm from "./ContactForm";
+import LanguageGuideButton from "./LanguageGuideModal";
 
 type InputMode = "paste" | "file" | "github";
 
@@ -495,6 +496,7 @@ function ResultPanel({ result }: { result: EstimateResult }) {
             <span className="text-xs text-zinc-500">
               {(result.detection.confidence * 100).toFixed(0)}%
             </span>
+            <LanguageGuideButton language={result.detection.language} />
           </div>
           {result.detection.candidates.length > 1 && (
             <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px]">
