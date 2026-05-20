@@ -5,6 +5,10 @@ import type { EstimateResult } from "@/lib/estimate";
 import { encodeShare, decodeShare } from "@/lib/sharePermalink";
 import { SAMPLES } from "@/lib/sampleCode";
 import { buildTwitterIntent, buildMarkdown, buildCsv } from "@/lib/shareText";
+import { getCachedEstimate, putCachedEstimate } from "@/lib/estimateCache";
+import { pushHistory } from "@/lib/estimateHistory";
+import HistoryPanel from "./HistoryPanel";
+import ContactForm from "./ContactForm";
 
 type InputMode = "paste" | "file" | "github";
 
@@ -25,6 +29,8 @@ export default function EstimateForm() {
   const [restoredFromUrl, setRestoredFromUrl] = useState(false);
   const [fetchedFiles, setFetchedFiles] = useState<{ path: string; bytes: number }[] | null>(null);
   const [progressStep, setProgressStep] = useState<number>(0); // 0=idle, 1=detect, 2=fewshot, 3=llm
+  const [fromCache, setFromCache] = useState<boolean>(false);
+  const [historyRefresh, setHistoryRefresh] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const progressTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -129,6 +135,7 @@ export default function EstimateForm() {
     e.preventDefault();
     setError(null);
     setResult(null);
+    setFromCache(false);
     setLoading(true);
     startProgress();
 
@@ -158,16 +165,33 @@ export default function EstimateForm() {
         setFetchedFiles(null);
       }
 
-      const res = await fetch("/api/estimate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data?.error || "見積もりに失敗しました。");
+      // キャッシュチェック (paste/file モードのみ、GitHub モードは fetch 後のコードが
+      // 上書きされて payload.code に入るのでここで判定）
+      const cached = getCachedEstimate(payload.code);
+      if (cached) {
+        setResult(cached);
+        setFromCache(true);
+        pushHistory(cached, payload.code);
+        setHistoryRefresh((n) => n + 1);
       } else {
-        setResult(data as EstimateResult);
+        const res = await fetch("/api/estimate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data?.error || "見積もりに失敗しました。");
+        } else {
+          const result = data as EstimateResult;
+          setResult(result);
+          // ヒューリスティック・フォールバック結果はキャッシュしない（次回 AI 復活時に新鮮な値を取りたい）
+          if (!result.is_heuristic_fallback) {
+            putCachedEstimate(payload.code, result);
+          }
+          pushHistory(result, payload.code);
+          setHistoryRefresh((n) => n + 1);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "通信エラー");
@@ -343,6 +367,8 @@ export default function EstimateForm() {
         </div>
       )}
 
+      <HistoryPanel refreshSignal={historyRefresh} />
+
       {result && (
         <>
           {restoredFromUrl && (
@@ -353,6 +379,11 @@ export default function EstimateForm() {
           {result.is_heuristic_fallback && (
             <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
               ⚠️ AI 推論サービスが応答しなかったため、言語判定と過去事例の経験則のみで見積もりました。数分後に再実行で詳細推論が得られる可能性があります。
+            </div>
+          )}
+          {fromCache && (
+            <div className="rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-4 py-2 text-xs text-zinc-600 dark:text-zinc-400">
+              💾 同じコードの直近結果をキャッシュから復元しました（このセッション内）
             </div>
           )}
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -389,6 +420,7 @@ export default function EstimateForm() {
             </div>
           </div>
           <ResultPanel result={result} />
+          <ContactForm result={result} shareUrl={buildShareUrl()} />
         </>
       )}
     </div>
