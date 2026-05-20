@@ -11,9 +11,16 @@ import {
   countNonBlankLines,
   type LanguageDetectionResult,
 } from "./languageDetector";
+import { TtlLruCache, hashCode } from "./serverCache";
 import fewshot from "../../data/fewshot_cases.json";
 
 const GEMINI_MODEL = "gemini-2.5-flash";
+
+// サーバーサイドキャッシュ: 1時間 TTL、最大100件
+// 同じコードの再投入はクライアント側 sessionStorage が先にキャッチするが、
+// 別ブラウザ・別ユーザーから同じコード（営業デモのサンプル等）が来た場合に
+// この層が API 呼び出しを節約する
+const serverCache = new TtlLruCache<EstimateResult>(100, 60 * 60 * 1000);
 
 export interface EstimateRequest {
   code: string;
@@ -189,6 +196,14 @@ export async function estimateCode(req: EstimateRequest): Promise<EstimateResult
     throw new Error("コードが短すぎます。少なくとも5行以上貼り付けてください。");
   }
 
+  // サーバー側キャッシュチェック
+  const cacheKey = hashCode(req.code);
+  const cached = serverCache.get(cacheKey);
+  if (cached) {
+    console.log("[estimate] server cache hit:", cacheKey);
+    return cached;
+  }
+
   const systemPrompt = buildSystemPrompt();
   const userPrompt = buildUserPrompt(req, detection, lines_total);
 
@@ -234,7 +249,7 @@ export async function estimateCode(req: EstimateRequest): Promise<EstimateResult
     })
     .filter((x): x is SimilarCase => x !== null);
 
-  return {
+  const result: EstimateResult = {
     detection,
     lines_total,
     lines_non_blank,
@@ -252,6 +267,11 @@ export async function estimateCode(req: EstimateRequest): Promise<EstimateResult
     caveats: parsed.caveats || [],
     model_used,
   };
+
+  // 成功時のみキャッシュ（ヒューリスティック・フォールバックは別のリターンパスで返している）
+  serverCache.set(cacheKey, result);
+
+  return result;
 }
 
 function clampStar(v: number): 1 | 2 | 3 | 4 | 5 {
