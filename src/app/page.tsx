@@ -1,4 +1,47 @@
+import type { Metadata } from "next";
 import EstimateForm from "@/components/EstimateForm";
+
+type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
+
+const SITE_URL = "https://legacy-code-estimate.vercel.app";
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}): Promise<Metadata> {
+  const sp = await searchParams;
+  const token = typeof sp.r === "string" ? sp.r : undefined;
+
+  const ogImageUrl = token
+    ? `${SITE_URL}/api/og?r=${encodeURIComponent(token)}`
+    : `${SITE_URL}/api/og`;
+
+  const title = "Legacy Code 変換見積もり";
+  const description =
+    "レガシーコードを貼り付けると AI が削減率・難易度・工数を返す Web ツール。11件の実変換実績を Few-shot 参照データとして使用。";
+
+  return {
+    title,
+    description,
+    metadataBase: new URL(SITE_URL),
+    openGraph: {
+      title,
+      description,
+      url: token ? `${SITE_URL}/?r=${encodeURIComponent(token)}` : SITE_URL,
+      siteName: "Legacy Code 変換見積もり",
+      images: [{ url: ogImageUrl, width: 1200, height: 630 }],
+      locale: "ja_JP",
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImageUrl],
+    },
+  };
+}
 
 export default function Home() {
   return (

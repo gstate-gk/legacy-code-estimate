@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import type { EstimateResult } from "@/lib/estimate";
 import { encodeShare, decodeShare } from "@/lib/sharePermalink";
 import { SAMPLES } from "@/lib/sampleCode";
+import { buildTwitterIntent, buildMarkdown, buildCsv } from "@/lib/shareText";
 
 type InputMode = "paste" | "file" | "github";
 
@@ -19,6 +20,8 @@ export default function EstimateForm() {
   const [result, setResult] = useState<EstimateResult | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [markdownCopied, setMarkdownCopied] = useState(false);
+  const [csvCopied, setCsvCopied] = useState(false);
   const [restoredFromUrl, setRestoredFromUrl] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,13 +42,42 @@ export default function EstimateForm() {
     }
   }, []);
 
+  function buildShareUrl(): string {
+    if (!result) return "";
+    const token = encodeShare(result, code.slice(0, 200));
+    return `${window.location.origin}${window.location.pathname}?r=${token}`;
+  }
+
   function copyShareUrl() {
     if (!result) return;
-    const token = encodeShare(result, code.slice(0, 200));
-    const shareUrl = `${window.location.origin}${window.location.pathname}?r=${token}`;
+    const shareUrl = buildShareUrl();
     navigator.clipboard.writeText(shareUrl).then(
       () => { setShareCopied(true); setTimeout(() => setShareCopied(false), 2500); },
       () => { setError("URL のコピーに失敗しました。"); }
+    );
+  }
+
+  function openTwitterIntent() {
+    if (!result) return;
+    const url = buildTwitterIntent(result, buildShareUrl());
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  function copyMarkdown() {
+    if (!result) return;
+    const md = buildMarkdown(result, buildShareUrl());
+    navigator.clipboard.writeText(md).then(
+      () => { setMarkdownCopied(true); setTimeout(() => setMarkdownCopied(false), 2500); },
+      () => { setError("Markdown のコピーに失敗しました。"); }
+    );
+  }
+
+  function copyCsv() {
+    if (!result) return;
+    const csv = buildCsv(result);
+    navigator.clipboard.writeText(csv).then(
+      () => { setCsvCopied(true); setTimeout(() => setCsvCopied(false), 2500); },
+      () => { setError("CSV のコピーに失敗しました。"); }
     );
   }
 
@@ -280,15 +312,38 @@ export default function EstimateForm() {
               ⚠️ AI 推論サービスが応答しなかったため、言語判定と過去事例の経験則のみで見積もりました。数分後に再実行で詳細推論が得られる可能性があります。
             </div>
           )}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <h2 className="text-lg font-semibold">見積もり結果</h2>
-            <button
-              type="button"
-              onClick={copyShareUrl}
-              className="rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800"
-            >
-              {shareCopied ? "✓ コピーしました" : "🔗 共有 URL をコピー"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={copyShareUrl}
+                className="rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              >
+                {shareCopied ? "✓ URL コピー済" : "🔗 共有 URL"}
+              </button>
+              <button
+                type="button"
+                onClick={openTwitterIntent}
+                className="rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              >
+                𝕏 シェア
+              </button>
+              <button
+                type="button"
+                onClick={copyMarkdown}
+                className="rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              >
+                {markdownCopied ? "✓ MD コピー済" : "📝 Markdown"}
+              </button>
+              <button
+                type="button"
+                onClick={copyCsv}
+                className="rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              >
+                {csvCopied ? "✓ CSV コピー済" : "📊 CSV"}
+              </button>
+            </div>
           </div>
           <ResultPanel result={result} />
         </>
