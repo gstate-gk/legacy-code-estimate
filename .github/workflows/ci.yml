@@ -36,3 +36,12 @@ jobs:
         env:
           # ビルドそのものには API キー不要、空でも通る
           GEMINI_API_KEY: ""
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests against production
+        run: npm run test:e2e:prod
+        env:
+          # 本番 URL に対して読み取り系のみテスト（フォーム実送信はしない設計）
+          GEMINI_API_KEY: ""

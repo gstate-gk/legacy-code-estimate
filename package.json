@@ -8,7 +8,9 @@
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:prod": "cross-env E2E_BASE_URL=https://legacy-code-estimate.vercel.app playwright test"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -20,11 +22,13 @@
     "resend": "^6.12.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.6",
+    "cross-env": "^10.1.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.6"
