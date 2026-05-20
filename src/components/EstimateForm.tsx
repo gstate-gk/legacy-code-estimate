@@ -23,6 +23,7 @@ export default function EstimateForm() {
   const [markdownCopied, setMarkdownCopied] = useState(false);
   const [csvCopied, setCsvCopied] = useState(false);
   const [restoredFromUrl, setRestoredFromUrl] = useState(false);
+  const [fetchedFiles, setFetchedFiles] = useState<{ path: string; bytes: number }[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // URL の ?r= パラメータがあれば見積もり結果として復元
@@ -119,7 +120,12 @@ export default function EstimateForm() {
 
       if (mode === "github") {
         if (!githubUrl) throw new Error("GitHub URL を入力してください。");
-        const r = await fetch("/api/fetch-github", {
+
+        // URL 形式を判別: /blob/ を含めば単一ファイル、なければリポジトリ全体
+        const isBlobUrl = /github\.com\/[^/]+\/[^/]+\/(blob|raw)\//i.test(githubUrl);
+        const endpoint = isBlobUrl ? "/api/fetch-github" : "/api/fetch-github-repo";
+
+        const r = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url: githubUrl }),
@@ -129,8 +135,10 @@ export default function EstimateForm() {
         payload = { code: d.code };
         setCode(d.code);
         setFileName(d.source_label || githubUrl);
+        setFetchedFiles(Array.isArray(d.files) ? d.files : null);
       } else {
         payload = { code };
+        setFetchedFiles(null);
       }
 
       const res = await fetch("/api/estimate", {
@@ -249,22 +257,37 @@ export default function EstimateForm() {
         {mode === "github" && (
           <>
             <label className="block text-sm font-medium">
-              GitHub 上のファイル URL
+              GitHub URL（単一ファイル or リポジトリ全体）
             </label>
             <input
               type="url"
               value={githubUrl}
               onChange={(e) => setGithubUrl(e.target.value)}
-              placeholder="https://github.com/owner/repo/blob/branch/path/to/file.cob"
+              placeholder="https://github.com/owner/repo   または   https://github.com/owner/repo/blob/main/path/to/file.cob"
               className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p className="text-xs text-zinc-500">
-              公開リポジトリの単一ファイル（または raw URL）に対応。ファイル単位で評価します。
+              公開リポジトリのみ対応。<strong>リポジトリ URL</strong> を渡すとレガシー言語の主要ソースファイル（最大 12 ファイル / 合計 200KB）を自動収集して一括評価します。
             </p>
             {code.length > 0 && fileName && (
               <p className="text-xs text-emerald-700 dark:text-emerald-500">
-                取得済み: {fileName} ({code.length.toLocaleString()} 文字)
+                取得済み: {fileName}
               </p>
+            )}
+            {fetchedFiles && fetchedFiles.length > 0 && (
+              <details className="text-xs">
+                <summary className="cursor-pointer text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">
+                  取得ファイル一覧 ({fetchedFiles.length} 件)
+                </summary>
+                <ul className="mt-2 space-y-1 font-mono">
+                  {fetchedFiles.map((f) => (
+                    <li key={f.path} className="text-zinc-600 dark:text-zinc-400">
+                      <span>{f.path}</span>
+                      <span className="ml-2 text-zinc-400">({f.bytes.toLocaleString()} B)</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             )}
           </>
         )}
