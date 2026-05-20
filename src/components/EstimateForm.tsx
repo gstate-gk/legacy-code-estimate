@@ -24,7 +24,23 @@ export default function EstimateForm() {
   const [csvCopied, setCsvCopied] = useState(false);
   const [restoredFromUrl, setRestoredFromUrl] = useState(false);
   const [fetchedFiles, setFetchedFiles] = useState<{ path: string; bytes: number }[] | null>(null);
+  const [progressStep, setProgressStep] = useState<number>(0); // 0=idle, 1=detect, 2=fewshot, 3=llm
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const progressTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  function startProgress() {
+    progressTimers.current.forEach(clearTimeout);
+    progressTimers.current = [];
+    setProgressStep(1);
+    progressTimers.current.push(setTimeout(() => setProgressStep(2), 800));
+    progressTimers.current.push(setTimeout(() => setProgressStep(3), 2500));
+  }
+
+  function stopProgress() {
+    progressTimers.current.forEach(clearTimeout);
+    progressTimers.current = [];
+    setProgressStep(0);
+  }
 
   // URL の ?r= パラメータがあれば見積もり結果として復元
   useEffect(() => {
@@ -114,6 +130,7 @@ export default function EstimateForm() {
     setError(null);
     setResult(null);
     setLoading(true);
+    startProgress();
 
     try {
       let payload: { code: string };
@@ -156,6 +173,7 @@ export default function EstimateForm() {
       setError(err instanceof Error ? err.message : "通信エラー");
     } finally {
       setLoading(false);
+      stopProgress();
     }
   }
 
@@ -305,7 +323,7 @@ export default function EstimateForm() {
               {code.length.toLocaleString()} 文字 / {code.split(/\r?\n/).length.toLocaleString()} 行
             </span>
           )}
-          {(mode === "paste" || mode === "file") && code.length > 0 && (
+          {(mode === "paste" || mode === "file") && code.length > 0 && !loading && (
             <button
               type="button"
               onClick={() => { setCode(""); setFileName(null); setResult(null); setError(null); }}
@@ -315,6 +333,8 @@ export default function EstimateForm() {
             </button>
           )}
         </div>
+
+        {loading && <ProgressIndicator step={progressStep} />}
       </form>
 
       {error && (
@@ -375,6 +395,45 @@ export default function EstimateForm() {
   );
 }
 
+function ProgressIndicator({ step }: { step: number }) {
+  const steps = [
+    { label: "言語判定", desc: "正規表現で構文を識別中..." },
+    { label: "過去事例照合", desc: "Few-shot 11件と比較中..." },
+    { label: "AI 推論", desc: "削減率・難易度・工数を生成中..." },
+  ];
+  return (
+    <div className="mt-3 rounded border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/30 px-4 py-3">
+      <div className="space-y-2">
+        {steps.map((s, i) => {
+          const idx = i + 1;
+          const state = step >= idx ? (step > idx ? "done" : "active") : "pending";
+          return (
+            <div key={i} className="flex items-center gap-3 text-xs">
+              <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold flex-shrink-0 ${
+                state === "done"
+                  ? "bg-emerald-500 text-white"
+                  : state === "active"
+                  ? "bg-blue-600 text-white animate-pulse"
+                  : "bg-zinc-200 dark:bg-zinc-700 text-zinc-500"
+              }`}>
+                {state === "done" ? "✓" : idx}
+              </span>
+              <span className={`font-medium ${
+                state === "pending" ? "text-zinc-500" : "text-zinc-900 dark:text-zinc-100"
+              }`}>
+                {s.label}
+              </span>
+              {state === "active" && (
+                <span className="text-zinc-500">{s.desc}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
@@ -399,13 +458,35 @@ function ResultPanel({ result }: { result: EstimateResult }) {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card title="検出言語" >
-          <div className="text-2xl font-bold">{result.detection.language}</div>
-          <div className="text-xs text-zinc-500 mt-1">
-            信頼度 {(result.detection.confidence * 100).toFixed(0)}%
-            {result.detection.evidence.length > 0 && (
-              <> ・ 検出: {result.detection.evidence.slice(0, 3).join(", ")}</>
-            )}
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-2xl font-bold">{result.detection.language}</span>
+            <span className="text-xs text-zinc-500">
+              {(result.detection.confidence * 100).toFixed(0)}%
+            </span>
           </div>
+          {result.detection.candidates.length > 1 && (
+            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px]">
+              <span className="text-zinc-500">他候補:</span>
+              {result.detection.candidates.slice(1, 4).map((c) => {
+                const total = result.detection.candidates.reduce((s, x) => s + x.score, 0);
+                const pct = total > 0 ? Math.round((c.score / total) * 100) : 0;
+                return (
+                  <span
+                    key={c.language}
+                    className="rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 px-1.5 py-0.5"
+                  >
+                    {c.language} {pct}%
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          {result.detection.evidence.length > 0 && (
+            <div className="mt-1.5 text-[11px] text-zinc-500">
+              根拠: {result.detection.evidence.slice(0, 3).join(", ")}
+              {result.detection.evidence.length > 3 && ` 他${result.detection.evidence.length - 3}件`}
+            </div>
+          )}
         </Card>
         <Card title="規模">
           <div className="text-2xl font-bold">{result.lines_total.toLocaleString()} 行</div>
