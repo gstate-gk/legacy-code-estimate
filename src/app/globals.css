@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tailwind v4: dark variant を class-based に切替（手動トグルと OS 追従を両立） */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -12,11 +15,18 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* OS 設定追従（手動切替されていないとき） */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
+}
+
+/* 手動 dark 指定 */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 body {

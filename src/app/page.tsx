@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import EstimateForm from "@/components/EstimateForm";
 import TrackRecord from "@/components/TrackRecord";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
@@ -44,9 +45,30 @@ export async function generateMetadata({
   };
 }
 
+const STRUCTURED_DATA = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "Legacy Code 変換見積もり",
+  description:
+    "レガシーコード（COBOL/PL/I/Fortran/MUMPS/RPG/VB6/Ada/Java 等）を AI が見積もる Web ツール。11件の実変換実績を Few-shot として使用。",
+  url: SITE_URL,
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Any (Web Browser)",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "JPY",
+  },
+  inLanguage: "ja",
+};
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }}
+      />
       <header className="relative overflow-hidden border-b border-zinc-200 dark:border-zinc-800 bg-gradient-to-br from-slate-50 via-blue-50/40 to-emerald-50/30 dark:from-slate-950 dark:via-blue-950/20 dark:to-emerald-950/10">
         {/* 装飾的な背景パターン */}
         <div
@@ -59,9 +81,12 @@ export default function Home() {
           aria-hidden="true"
         />
         <div className="relative mx-auto max-w-5xl px-6 py-10">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/70 dark:bg-zinc-900/70 backdrop-blur px-3 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-300 ring-1 ring-zinc-200 dark:ring-zinc-800">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            11件の変換実績を Few-shot 参照データとして稼働中
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/70 dark:bg-zinc-900/70 backdrop-blur px-3 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-300 ring-1 ring-zinc-200 dark:ring-zinc-800">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              11件の変換実績を Few-shot 参照データとして稼働中
+            </div>
+            <ThemeToggle />
           </div>
           <h1 className="mt-4 text-3xl md:text-4xl font-bold tracking-tight">
             Legacy Code 変換見積もり
