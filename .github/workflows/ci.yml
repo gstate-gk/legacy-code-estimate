@@ -23,7 +23,10 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
+        # npm ci は OS 間で optional dependencies の差があると失敗する
+        # （Windows ローカル → Linux CI で lockfile の @emnapi 等が変わる）
+        # npm install で OS 別の native dep を自動補完
+        run: npm install --no-audit --no-fund
 
       - name: Run unit tests
         run: npm test
