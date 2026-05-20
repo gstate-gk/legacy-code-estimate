@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { EstimateResult } from "@/lib/estimate";
 import { encodeShare, decodeShare } from "@/lib/sharePermalink";
+import { SAMPLES } from "@/lib/sampleCode";
 
 type InputMode = "paste" | "file" | "github";
 
@@ -140,13 +141,34 @@ export default function EstimateForm() {
       <form onSubmit={onSubmit} className="space-y-3">
         {mode === "paste" && (
           <>
-            <label className="block text-sm font-medium">
-              評価したいコード（20万文字以内）
-            </label>
+            <div className="flex items-baseline justify-between flex-wrap gap-2">
+              <label className="block text-sm font-medium">
+                評価したいコード（20万文字以内）
+              </label>
+              <div className="text-xs text-zinc-500">
+                サンプル読込:
+                {SAMPLES.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      setCode(s.code);
+                      setFileName(null);
+                      setResult(null);
+                      setError(null);
+                    }}
+                    className="ml-1.5 underline decoration-dotted hover:text-blue-700 dark:hover:text-blue-400"
+                    title={`${s.language} の代表サンプルを貼る`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <textarea
               value={code}
               onChange={(e) => { setCode(e.target.value); setFileName(null); }}
-              placeholder="ここに COBOL / PL/I / Fortran / MUMPS / RPG / VB6 / Ada / Java 等のコードを貼り付け..."
+              placeholder="ここに COBOL / PL/I / Fortran / MUMPS / RPG / VB6 / Ada / Java 等のコードを貼り付け...&#10;&#10;上の「サンプル読込」のボタンから代表例を1クリックで挿入できます。"
               className="w-full h-64 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               spellCheck={false}
               minLength={20}
