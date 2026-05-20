@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
     }
 
     // blob のみ、サポート拡張子のみ、除外パターン除外
-    type Candidate = { path: string; size: number; weight: number };
+    type Candidate = { path: string; size: number; weight: number; ext: string };
     const candidates: Candidate[] = [];
     for (const entry of tree.tree.slice(0, MAX_TREE_SIZE)) {
       if (entry.type !== "blob") continue;
@@ -158,6 +158,7 @@ export async function POST(req: NextRequest) {
         path: entry.path,
         size: entry.size ?? 0,
         weight: cls.weight,
+        ext: cls.ext,
       });
     }
 
@@ -168,9 +169,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 重み高い順、同重みならサイズ大きい順（中身の濃いファイルを優先）
+    // メイン言語ヒューリスティック:
+    // 拡張子ごとの累計サイズが最大のものを「主言語」とみなし、その拡張子のファイルにブースト
+    // これで「Mako の .java（VM 本体）が、サブ DSL の .f より先に拾われる」ような直感に合う挙動になる
+    const sizeByExt = new Map<string, number>();
+    const countByExt = new Map<string, number>();
+    for (const c of candidates) {
+      sizeByExt.set(c.ext, (sizeByExt.get(c.ext) ?? 0) + c.size);
+      countByExt.set(c.ext, (countByExt.get(c.ext) ?? 0) + 1);
+    }
+    let mainExt: string | null = null;
+    let mainScore = 0;
+    for (const [ext, totalSize] of sizeByExt.entries()) {
+      // スコア = 合計バイト数 × log(ファイル数+1) で「量も種類も多い」拡張子を主言語に
+      const cnt = countByExt.get(ext) ?? 0;
+      const score = totalSize * Math.log(cnt + 1);
+      if (score > mainScore) {
+        mainScore = score;
+        mainExt = ext;
+      }
+    }
+
+    // 主言語ブースト: +50 ポイント。元の重み付け(100/90/...)は維持しつつ、
+    // サブ DSL 系（重み 90）と主言語の現代寄りファイル（重み 50）の順位を入れ替える効果がある
+    const BOOST = 50;
+
     candidates.sort((a, b) => {
-      if (b.weight !== a.weight) return b.weight - a.weight;
+      const wa = a.ext === mainExt ? a.weight + BOOST : a.weight;
+      const wb = b.ext === mainExt ? b.weight + BOOST : b.weight;
+      if (wb !== wa) return wb - wa;
+      // 同重みならサイズ大きい順（中身の濃いファイルを優先）
       return b.size - a.size;
     });
 
@@ -217,12 +245,19 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       code: truncated,
-      source_label: `${ref.owner}/${ref.repo}@${ref.ref} (${fetched.length}ファイル / ${truncated.length.toLocaleString()}文字)`,
+      source_label: `${ref.owner}/${ref.repo}@${ref.ref} (${fetched.length}ファイル / ${truncated.length.toLocaleString()}文字${mainExt ? ` / 主言語 ${mainExt}` : ""})`,
       ref,
       file_count: fetched.length,
       files: fetched.map((f) => ({ path: f.path, bytes: f.code.length })),
       tree_truncated: tree.truncated,
       total_candidates: candidates.length,
+      main_ext: mainExt,
+      ext_distribution: Object.fromEntries(
+        Array.from(sizeByExt.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([ext, bytes]) => [ext, { bytes, count: countByExt.get(ext) ?? 0 }])
+      ),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "不明なエラー";

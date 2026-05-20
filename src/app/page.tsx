@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import EstimateForm from "@/components/EstimateForm";
+import TrackRecord from "@/components/TrackRecord";
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
@@ -61,8 +62,10 @@ export default function Home() {
           </p>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-6 py-10">
+      <main className="mx-auto max-w-5xl px-6 py-10 space-y-12">
         <EstimateForm />
+        <hr className="border-zinc-200 dark:border-zinc-800" />
+        <TrackRecord />
       </main>
       <footer className="border-t border-zinc-200 dark:border-zinc-800 mt-12">
         <div className="mx-auto max-w-5xl px-6 py-6 text-xs text-zinc-500">
