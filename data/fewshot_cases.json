@@ -416,20 +416,252 @@
         "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_25_MAKO_VM_ZENN.md",
         "source_repo_url": "https://github.com/JohnEarnest/Mako"
       }
+    },
+    {
+      "id": "acas_stock",
+      "name": "ACAS Stock (Applewood Computers Accounting System — 在庫元帳モジュール)",
+      "source": {
+        "language": "COBOL",
+        "dialect": "GnuCOBOL 3.2 / メインフレーム起源",
+        "paradigm": "procedural",
+        "era": "1980s-2010s",
+        "original_lines": 8414,
+        "modules": ["sales", "purchase", "general", "stock", "common", "IRS"],
+        "scope": "Stock(在庫元帳)モジュール13本"
+      },
+      "target": {
+        "frontend": "React + TypeScript + Vite",
+        "backend": "FastAPI + SQLAlchemy + aiosqlite",
+        "converted_lines": 1410
+      },
+      "metrics": {
+        "reduction_rate": 0.83,
+        "difficulty_stars": 3,
+        "workdays_min": 15,
+        "workdays_max": 30
+      },
+      "domain": "業務系・在庫管理（在庫元帳・入出庫・評価額）",
+      "key_challenges": [
+        "在庫評価ロジック（移動平均/標準原価）をCOBOL COMP-3精度のまま再現",
+        "GLモジュールと共有するcommonルーチンの境界を切り分け",
+        "第1段(GnuCOBOL実行差分)・第2段(真理値表)の2段エビデンスで検証",
+        "ACAS内の他モジュール(GL)との仕訳連携ロジックの扱い"
+      ],
+      "notable_features": "ACASシリーズ2本目。GLで確立した検証手法をそのまま再利用できることを実証",
+      "category": "業務系・会計",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_ACAS_STOCK.md",
+        "source_repo_url": "https://github.com/VincentBCoen/ACAS-Sources"
+      }
+    },
+    {
+      "id": "acas_sales",
+      "name": "ACAS Sales (Applewood Computers Accounting System — 販売元帳モジュール)",
+      "source": {
+        "language": "COBOL",
+        "dialect": "GnuCOBOL 3.2 / メインフレーム起源",
+        "paradigm": "procedural",
+        "era": "1980s-2010s",
+        "original_lines": 22808,
+        "modules": ["sales", "purchase", "general", "stock", "common", "IRS"],
+        "scope": "Salesモジュール全30本中、中核11本を変換"
+      },
+      "target": {
+        "frontend": "React + TypeScript + Vite",
+        "backend": "FastAPI + SQLAlchemy + aiosqlite",
+        "converted_lines": 3721
+      },
+      "metrics": {
+        "reduction_rate": 0.84,
+        "difficulty_stars": 3,
+        "workdays_min": 25,
+        "workdays_max": 45
+      },
+      "domain": "業務系・販売管理（得意先元帳・請求・入金消込）",
+      "key_challenges": [
+        "全30本中どこまでが業務ロジックの中核かの切り分け(11本に絞り込み)",
+        "得意先元帳のオープンアイテム消込ロジックの再現",
+        "第1段33/33一致・第2段126/126 PASSの2段エビデンス",
+        "GL/Stockとの仕訳連携（売上計上→GL転記）の境界"
+      ],
+      "notable_features": "ACASシリーズ最大規模(原典22,808行)。全モジュール中プログラム数最多",
+      "category": "業務系・会計",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_ACAS_SALES.md",
+        "source_repo_url": "https://github.com/VincentBCoen/ACAS-Sources"
+      }
+    },
+    {
+      "id": "acas_purchase",
+      "name": "ACAS Purchase (Applewood Computers Accounting System — 買掛元帳モジュール)",
+      "source": {
+        "language": "COBOL",
+        "dialect": "GnuCOBOL 3.2 / メインフレーム起源",
+        "paradigm": "procedural",
+        "era": "1980s-2010s",
+        "original_lines": 20102,
+        "modules": ["sales", "purchase", "general", "stock", "common", "IRS"],
+        "scope": "Purchaseモジュール全32本中、中核12本(業務ロジック11本)を変換"
+      },
+      "target": {
+        "frontend": "React + TypeScript + Vite",
+        "backend": "FastAPI + SQLAlchemy + aiosqlite",
+        "converted_lines": 5012
+      },
+      "metrics": {
+        "reduction_rate": 0.75,
+        "difficulty_stars": 3,
+        "workdays_min": 25,
+        "workdays_max": 45
+      },
+      "domain": "業務系・購買管理（仕入先元帳・支払・買掛消込）",
+      "key_challenges": [
+        "仕入先元帳の支払消込・エイジング分析ロジックの再現",
+        "第1段27/27一致・第2段234/234 PASSの2段エビデンス",
+        "Salesと対になる業務（買掛）を売掛側の知見を再利用しつつ変換",
+        "ACASシリーズ内でSalesに次ぐ削減率の低さ（業務ロジック密度が高い）"
+      ],
+      "notable_features": "ACASシリーズでGLに次ぐ削減率の低さ(75%)。買掛特有の消込・支払スケジュールロジックが厚い",
+      "category": "業務系・会計",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_ACAS_PURCHASE.md",
+        "source_repo_url": "https://github.com/VincentBCoen/ACAS-Sources"
+      }
+    },
+    {
+      "id": "acas_irs",
+      "name": "ACAS IRS (Applewood Computers Accounting System — 簡易帳簿モジュール)",
+      "source": {
+        "language": "COBOL",
+        "dialect": "GnuCOBOL 3.2 / メインフレーム起源",
+        "paradigm": "procedural",
+        "era": "1980s-2010s",
+        "original_lines": 10372,
+        "modules": ["sales", "purchase", "general", "stock", "common", "IRS"],
+        "scope": "IRSモジュール全19本中、業務ロジック9本を変換"
+      },
+      "target": {
+        "frontend": "React + TypeScript + Vite",
+        "backend": "FastAPI + SQLAlchemy + aiosqlite",
+        "converted_lines": 4748
+      },
+      "metrics": {
+        "reduction_rate": 0.54,
+        "difficulty_stars": 4,
+        "workdays_min": 25,
+        "workdays_max": 45
+      },
+      "domain": "業務系・会計（簡易帳簿・確定申告向け集計）",
+      "key_challenges": [
+        "第1段/第2段のエビデンスが揃った後も、全業務分岐を精読して機能欠落6件（勘定振替・期末集計まわり）を発見・実装",
+        "ACASシリーズ中で唯一、削減率がシリーズ平均を大きく下回る(54%)＝簡易帳簿は業務ルールが薄く見えて実は分岐が多い",
+        "determine_dr_cr の借方/貸方判定ロジック等、既存実装のバグを変換過程で発見・修正",
+        "FinalAccountsSettings(期末設定)など未実装だった機能クラスタの後追い実装"
+      ],
+      "notable_features": "シリーズ内で唯一『2段エビデンス通過後にさらに機能欠落が見つかった』ケース。表面的なテストPASSだけでは品質保証にならないことの実例",
+      "category": "業務系・会計",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_ACAS_IRS.md",
+        "source_repo_url": "https://github.com/VincentBCoen/ACAS-Sources"
+      }
+    },
+    {
+      "id": "genapp",
+      "name": "IBM GenApp (CICS 保険業務アプリ・オンライン緑画面リファレンス実装)",
+      "source": {
+        "language": "COBOL + BMS",
+        "dialect": "z/OS Enterprise COBOL + CICS + DB2",
+        "paradigm": "procedural + CICS online transaction",
+        "era": "1990s-2010s（IBM公式リファレンス実装）",
+        "original_lines": 12700,
+        "scope": "COBOL31本+コピーブック13本+BMS1本(6画面)+JCL29本"
+      },
+      "target": {
+        "frontend": "React + Vite",
+        "backend": "FastAPI + SQLite",
+        "converted_lines": 1570
+      },
+      "metrics": {
+        "reduction_rate": 0.84,
+        "difficulty_stars": 4,
+        "workdays_min": 20,
+        "workdays_max": 35
+      },
+      "domain": "保険（契約照会・追加・更新のオンライン取引）",
+      "key_challenges": [
+        "CICS BMS緑画面6トランザクションをReactオンライン操作へ",
+        "DB2データ層(SELECT中心の複数プログラム)を単一SQLiteスキーマへ統合",
+        "第1段(GnuCOBOL実行差分45件)＋第2段(C1/境界/ファジング/RC90の74件)＝計119ケース全PASS",
+        "COBOL行カバレッジ66.8%（gcov実測）と未到達分の機能分類"
+      ],
+      "notable_features": "IBM公式のCICSオンライン取引リファレンス実装。メインフレーム『緑画面』のオンライン処理をWeb化した最初の実例",
+      "category": "業務系・保険",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_GENAPP.md",
+        "source_repo_url": "https://github.com/genappuser/genapp"
+      }
+    },
+    {
+      "id": "cbsa",
+      "name": "CBSA (CICS 銀行勘定系 テラー業務リファレンス実装)",
+      "source": {
+        "language": "COBOL + BMS",
+        "dialect": "z/OS Enterprise COBOL + CICS + DB2 + VSAM",
+        "paradigm": "procedural + CICS online transaction + 非同期子タスク",
+        "era": "1990s-2010s（IBM公式リファレンス実装）",
+        "original_lines": 25600,
+        "scope": "COBOL29本+コピーブック37本(1,669行)+BMS9本(852行)"
+      },
+      "target": {
+        "frontend": "React + Vite",
+        "backend": "FastAPI + SQLite",
+        "converted_lines": 1273
+      },
+      "metrics": {
+        "reduction_rate": 0.95,
+        "difficulty_stars": 4,
+        "workdays_min": 25,
+        "workdays_max": 45
+      },
+      "domain": "金融（銀行窓口・口座CRUD・入出金・資金移動・信用調査）",
+      "key_challenges": [
+        "VSAM顧客ファイル＋DB2口座/取引/採番の二重データストアを単一SQLiteに統合",
+        "CRDTAGY1〜5の非同期信用調査（子タスク並行起動→FETCH ANY→平均）をasyncio.gatherで再現",
+        "パック10進・ビッグエンディアン・複数カーソル・LE日付サービスの再現",
+        "初版106ケースPASSで『取りこぼしゼロ』と報告したが後日の分岐網羅精読で業務規則欠落6件を発見・是正（是正後も全106ケースPASS維持）"
+      ],
+      "notable_features": "IBM公式の銀行勘定系リファレンス実装。初回検証『全PASS』が実は代表値ベースの甘さで、全業務分岐の精読により初めて欠落が見つかった教訓的ケース",
+      "category": "業務系・金融",
+      "links": {
+        "museum_url": "https://gstate-gk.github.io/legacy-code-museum/",
+        "zenn_url": null,
+        "article_url": "https://github.com/gstate-gk/legacy-code-archive/blob/master/articles/ARTICLE_CBSA.md",
+        "source_repo_url": "https://github.com/cbsa/cbsa"
+      }
     }
   ],
   "summary": {
-    "total_cases": 11,
+    "total_cases": 17,
     "reduction_range": {
       "min": -0.057,
       "max": 0.987,
       "min_case": "Mako VM (VMコア)",
       "max_case": "Hengband Web"
     },
-    "language_coverage": ["COBOL", "COBOL+ASM", "VB6", "MUMPS", "PL/I", "Fortran 77", "C+Lua", "C→Rust", "RPG IV", "Ada", "Java/Forth"],
-    "domain_coverage": ["会計", "金融", "小売", "医療", "MMO", "科学計算", "ローグライク", "言語進化", "IBM i", "学術・人文", "VM・言語処理系"],
+    "language_coverage": ["COBOL", "COBOL+ASM", "COBOL+BMS(CICS)", "VB6", "MUMPS", "PL/I", "Fortran 77", "C+Lua", "C→Rust", "RPG IV", "Ada", "Java/Forth"],
+    "domain_coverage": ["会計", "金融", "小売", "医療", "MMO", "科学計算", "ローグライク", "言語進化", "IBM i", "学術・人文", "VM・言語処理系", "保険"],
     "conversion_axes": {
-      "web_migration": 9,
+      "web_migration": 15,
       "language_evolution": 1,
       "environment_porting": 1
     }
